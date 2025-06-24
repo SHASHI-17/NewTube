@@ -12,7 +12,6 @@ import { Badge } from "./ui/badge";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { Skeleton } from "./ui/skeleton";
-import { is } from "drizzle-orm";
 
 interface FilterCarouselProps {
   value?: string | null;
