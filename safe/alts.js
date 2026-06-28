@@ -8,9 +8,9 @@ import readline from "readline";
 puppeteer.use(StealthPlugin());
 
 // ================== CONFIG ==================
-const PROFILE_URL = "https://x.com/am1rax"; // Change to the desired profile URL to process tweets from
+const PROFILE_URL = "https://x.com/Wetogethertlid"; // Change to the desired profile URL to process tweets from
 const STOP_AT_TWEET_URL =
-  "https://x.com/am1rax/status/2070511474037203135?s=20";
+  "https://x.com/Wetogethertlid/status/2069417924163674245";
 // Example: "https://x.com/username/status/123456789" - will process tweets ABOVE this one and stop when reaching it
 // Set to null to process all tweets on the profile
 
@@ -20,15 +20,15 @@ const BASE_USER_DATA_DIR =
 
 // Multiple accounts configuration
 const ACCOUNT_NAMES = [
-  "adore",
-  "orange",
-  "bluemoon",
-  "kiran",
-  "hibye",
-  "inyvix",
-  "bae",
+  // "adore",
+  // "orange",
+  // "bluemoon",
+  // "kiran",
+  // "hibye",
+  // "inyvix",
+  // "bae",
   "anchinka",
-  // "meera",
+  "meera",
   // "ivy",
   // "ixyi",
   // "water1",

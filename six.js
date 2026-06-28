@@ -3,6 +3,7 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import fs from "fs";
 import path from "path";
 import readline from "readline";
+import axios from "axios";
 
 // 🧩 Enable stealth plugin to bypass bot detection
 puppeteer.use(StealthPlugin());
@@ -22,12 +23,12 @@ const BASE_USER_DATA_DIR =
 const ACCOUNT_NAMES = [
   "adore",
   "orange",
-  "bluemoon",
-  "kiran",
-  "hibye",
-  "inyvix",
-  "bae",
-  "anchinka",
+  // "bluemoon",
+  // "kiran",
+  // "hibye",
+  // "inyvix",
+  // "bae",
+  // "anchinka",
   // "meera",
   // "ivy",
   // "ixyi",
@@ -41,6 +42,12 @@ const ACCOUNT_NAMES = [
 ];
 const REGISTER_MODE = false; // Set to true to register accounts, false to perform actions
 const HEADLESS = false;
+const REPEAT_COUNT = 2; // Number of times to repeat (0 = run once, >0 = repeat that many times)
+
+// ================== TELEGRAM CONFIG ==================s
+const TELEGRAM_BOT_TOKEN = "8857592188:AAGxyx4V6t6fJQ9C--Fq4fBZBKIbbCimeLU"; // Your bot token
+const TELEGRAM_CHAT_IDS = ["1991164194", "1956483216"]; // Add multiple chat IDs
+const SEND_TO_TELEGRAM = true; // Set to true to enable Telegram notifications
 
 // ================== ACTION CONFIG ==================
 // ⚠️ SET THESE TO true/false BEFORE RUNNING ⚠️
@@ -142,6 +149,36 @@ const askYesNo = (q) =>
     });
   });
 
+// ================== TELEGRAM FUNCTION ==================
+async function sendToTelegram(message) {
+  if (
+    !SEND_TO_TELEGRAM ||
+    !TELEGRAM_BOT_TOKEN ||
+    !TELEGRAM_CHAT_IDS ||
+    TELEGRAM_CHAT_IDS.length === 0
+  ) {
+    return;
+  }
+
+  try {
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+    // Send to all chat IDs
+    for (const chatId of TELEGRAM_CHAT_IDS) {
+      await axios.post(url, {
+        chat_id: chatId,
+        text: message,
+        parse_mode: "HTML",
+      });
+    }
+    console.log(
+      `✅ Report sent to Telegram to ${TELEGRAM_CHAT_IDS.length} people!`,
+    );
+  } catch (error) {
+    console.error("⚠️ Failed to send to Telegram:", error.message);
+  }
+}
+
 // Ensure base folder
 if (!fs.existsSync(BASE_USER_DATA_DIR))
   fs.mkdirSync(BASE_USER_DATA_DIR, { recursive: true });
@@ -228,6 +265,9 @@ async function processProfile(
 
   // Get consistent fingerprint for this account
   const fingerprint = getAccountFingerprint(accountIndex);
+
+  // Collection to store usernames whose tweets were processed
+  const processedTweetUsernames = new Set();
 
   // Calculate window position for 2 windows side by side (50% width, full height)
   // Slot 0: left, Slot 1: right
@@ -436,6 +476,7 @@ async function processProfile(
               name: profileName,
               success: true,
               tweetsProcessed: processedTweets,
+              processedUsernames: Array.from(processedTweetUsernames),
               stoppedAt: stopAtTweetId,
             };
           }
@@ -452,6 +493,37 @@ async function processProfile(
             el.scrollIntoView({ behavior: "smooth", block: "center" });
           }, tweet);
           await sleepWithJitter(400, accountIndex);
+
+          // Extract username from tweet (author of the tweet)
+          try {
+            const tweetAuthor = await page.evaluate((el) => {
+              // Method 1: Extract from tweet link URL (MOST RELIABLE)
+              const linkElement = el.querySelector('a[href*="/status/"]');
+              if (linkElement) {
+                const href = linkElement.getAttribute("href");
+                const match = href.match(/com\/([^\/]+)\/status\//);
+                if (match && match[1]) {
+                  return "@" + match[1];
+                }
+              }
+
+              // Method 2: Look for all text content and find @ pattern
+              const allText = el.textContent;
+              const matches = allText.match(/@([a-zA-Z0-9_]{1,15})/g);
+              if (matches && matches.length > 0) {
+                // Return the first match (usually the tweet author)
+                return matches[0];
+              }
+
+              return null;
+            }, tweet);
+
+            if (tweetAuthor && !processedTweetUsernames.has(tweetAuthor)) {
+              processedTweetUsernames.add(tweetAuthor);
+            }
+          } catch (e) {
+            // Silently skip errors
+          }
 
           // ❤️ Like (direct from timeline, don't open tweet)
           if (DO_LIKE) {
@@ -765,6 +837,7 @@ async function processProfile(
       name: profileName,
       success: true,
       tweetsProcessed: processedTweets,
+      processedUsernames: Array.from(processedTweetUsernames),
     };
   } catch (err) {
     console.error(`🔥 Error with ${profileName}:`, err.message);
@@ -854,7 +927,7 @@ async function manualLogin(profileDir, profileName) {
 }
 
 // ================== MAIN ==================
-(async () => {
+async function runScript(globalUsernames) {
   const results = [];
 
   if (REGISTER_MODE) {
@@ -907,14 +980,110 @@ async function manualLogin(profileDir, profileName) {
 
   rl.close();
   console.log("\n================== SUMMARY ==================");
+
+  // Collect successful accounts
+  const successfulAccounts = [];
+  const failedAccounts = [];
+
   for (const r of results) {
     if (r.success) {
       console.log(
-        `✅ ${r.name} (${r.mode}) — Success${r.tweetsProcessed ? ` - ${r.tweetsProcessed} tweets processed` : ""}`,
+        `✅ @${r.name} (${r.mode}) — Success${r.tweetsProcessed ? ` - ${r.tweetsProcessed} tweets processed` : ""}`,
       );
+      successfulAccounts.push(`@${r.name}`);
+
+      // Add all usernames collected from this account to the global Set
+      if (r.processedUsernames && r.processedUsernames.length > 0) {
+        r.processedUsernames.forEach((username) => {
+          globalUsernames.add(username); // Automatically handles duplicates
+        });
+      }
     } else {
-      console.log(`⚠️ ${r.name} (${r.mode}) — Failed: ${r.reason || ""}`);
+      console.log(`⚠️ @${r.name} (${r.mode}) — Failed: ${r.reason || ""}`);
+      failedAccounts.push(`@${r.name}`);
     }
   }
-  console.log("=============================================\n");
+
+  console.log("=============================================");
+
+  // Display failed accounts if any
+  if (failedAccounts.length > 0) {
+    console.log("\n❌ FAILED ACCOUNTS:");
+    console.log(`📋 ${failedAccounts.join(", ")}`);
+  }
+
+  // Display all usernames whose tweets were processed (GOT section)
+  if (globalUsernames.size > 0) {
+    // Extract username from PROFILE_URL to exclude it
+    const profileUsername = PROFILE_URL.match(/x\.com\/([^\/]+)/)?.[1] || "";
+
+    // Remove profile owner username from the list and display others
+    const otherUsernames = Array.from(globalUsernames).filter((username) => {
+      const nameWithoutAt = username.replace("@", "");
+      return nameWithoutAt !== profileUsername;
+    });
+
+    console.log("\nGOT");
+    console.log(); // Empty line after GOT
+    otherUsernames.forEach((username) => {
+      console.log(username);
+    });
+    console.log(); // Empty line after usernames
+    console.log(`total: ${otherUsernames.length}`);
+
+    // Send report to Telegram
+    const telegramMessage = `GOT
+
+${otherUsernames.join("\n")}
+
+total: ${otherUsernames.length}`;
+    await sendToTelegram(telegramMessage);
+  }
+
+  console.log("\n=============================================\n");
+
+  return results;
+}
+
+// Main execution with repeat functionality
+(async () => {
+  let iteration = 0;
+
+  // Persistent Set to collect ALL usernames across all iterations (no duplicates)
+  const globalUsernames = new Set();
+
+  const shouldRepeat = REPEAT_COUNT > 0;
+  const maxIterations = shouldRepeat ? REPEAT_COUNT : 1;
+
+  while (iteration < maxIterations) {
+    iteration++;
+    const isRepeatMode = shouldRepeat && maxIterations > 1;
+    console.log(`\n🚀 ITERATION ${iteration}/${maxIterations}${isRepeatMode ? " (REPEAT MODE)" : ""}`);
+    console.log("=============================================\n");
+
+    const results = await runScript(globalUsernames);
+
+    // Check if we've completed all iterations
+    if (iteration >= maxIterations) {
+      console.log(`✅ Script completed. Ran ${iteration} time${iteration > 1 ? 's' : ''}.`);
+      break;
+    }
+
+    console.log(
+      `\n🔄 REPEAT mode is enabled. Starting iteration ${iteration + 1}/${maxIterations} in 1 minute...`,
+    );
+    console.log("Press Ctrl+C to stop the script.\n");
+
+    // Wait 1 minute (60 seconds) before repeating
+    await sleep(60000);
+
+    // Recreate readline interface for next iteration
+    const rl_new = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    // Update global rl for next iteration
+    global.rl = rl_new;
+  }
 })();

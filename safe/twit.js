@@ -9,8 +9,7 @@ puppeteer.use(StealthPlugin());
 
 // ================== CONFIG ==================
 const TWEET_URL =
-  process.env.TWEET_URL ||
-  "https://x.com/xoeeie/status/2070903360493154625?s=20";
+  process.env.TWEET_URL || "https://x.com/xoeeie/status/2069454547890868414";
 
 const BASE_USER_DATA_DIR =
   process.env.BASE_USER_DATA_DIR ||
@@ -40,7 +39,7 @@ const HEADLESS = false;
 // ================== ACTION CONFIG ==================
 const DO_LIKE = true;
 const DO_BOOKMARK = true;
-const DO_QUOTE = false; // Quote tweet with random text
+const DO_QUOTE = true; // Quote tweet with random text
 const DO_RETWEET = true; // Simple retweet/repost
 const SLEEP_MS = 1500;
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -745,9 +744,7 @@ async function processProfile(
       if (posted) {
         console.log(`✅ ${profileName} posted Quote successfully!`);
       } else {
-        console.log(
-          `⚠️ ${profileName} could not post Quote (may already be quoted). Continuing...`,
-        );
+        console.log(`⚠️ ${profileName} could not post Quote (may already be quoted). Continuing...`);
       }
 
       await sleepWithJitter(2500, accountIndex);

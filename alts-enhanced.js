@@ -8,9 +8,9 @@ import readline from "readline";
 puppeteer.use(StealthPlugin());
 
 // ================== CONFIG ==================
-const PROFILE_URL = "https://x.com/Wetogethertlid";
+const PROFILE_URL = "https://x.com/loveebirdsss";
 const STOP_AT_TWEET_URL =
-  "https://x.com/Wetogethertlid/status/2069714609129562556";
+  "https://x.com/loveebirdsss/status/2069641717788418403";
 // Example: "https://x.com/username/status/123456789" - will process tweets ABOVE this one and stop when reaching it
 // Set to null to process all tweets on the profile
 
@@ -19,7 +19,7 @@ const BASE_USER_DATA_DIR =
   "C:\\Users\\HP\\AppData\\Local\\Google\\Chrome\\User Data\\Automation";
 
 // Single account configuration
-const ACCOUNT_NAME = "hibye";
+const ACCOUNT_NAME = "ivy";
 const REGISTER_MODE = false; // Set to false after registration to perform actions
 const HEADLESS = false;
 
@@ -31,10 +31,16 @@ const DO_RETWEET = false; // Retweet tweets while scrolling
 const DO_COMMENT = false; // Comment on tweets while scrolling
 const SLEEP_MS = 300; // Quick action delay between actions (milliseconds)
 const MAX_TWEETS = null; // null = unlimited, or set a number like 50 to stop after that many tweets
-const SCROLL_PAUSE_MS = 2500; // Longer pause between scrolls to ensure tweets fetch properly
+const SCROLL_PAUSE_MS = 2000; // Longer pause between scrolls to ensure tweets fetch properly
 const TWEETS_BEFORE_VERIFY = 30; // After this many tweets, show progress update
 const SCROLL_PERCENTAGE = 0.5; // Scroll by 50% of viewport height for better loading
 const STOP_AT_TWEET_ID = null; // Extract tweet ID from URL, or set to null for no limit
+
+// ================== SKIP DETECTION CONFIG ==================
+const CHUNK_SIZE = 3; // Process tweets in small chunks to avoid DOM staleness
+const OVERLAP_SIZE = 2; // Overlap between chunks to catch missed tweets
+const PRESENCE_CHECK = true; // Verify tweet is still in DOM before processing
+const SKIP_REPORT_FILE = "./skip-reports/alts-skipped-tweets.json"; // Where to save skip reports
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
 // ================== ANTI-DETECTION CONFIG ==================
@@ -166,6 +172,221 @@ async function clickIfVisible(page, selectors = []) {
   return false;
 }
 
+// ================== SKIP TRACKING SYSTEM ==================
+class SkipTracker {
+  constructor() {
+    this.allSeenTweetIds = new Set(); // All tweets we've ever encountered
+    this.processedTweetIds = new Set(); // Tweets successfully processed
+    this.skippedTweets = []; // Detailed info about skipped tweets
+    this.missedTweets = []; // Tweets that disappeared before processing
+    this.processingOrder = []; // Order in which we saw tweets
+  }
+
+  // Record a tweet we've seen
+  recordTweet(tweetId, tweetUrl) {
+    if (!this.allSeenTweetIds.has(tweetId)) {
+      this.allSeenTweetIds.add(tweetId);
+      this.processingOrder.push({ id: tweetId, url: tweetUrl, timestamp: Date.now() });
+    }
+  }
+
+  // Mark a tweet as successfully processed
+  markProcessed(tweetId, tweetUrl) {
+    this.processedTweetIds.add(tweetId);
+  }
+
+  // Record a tweet that was skipped (we saw it but didn't process)
+  recordSkipped(tweetId, tweetUrl, reason) {
+    if (!this.processedTweetIds.has(tweetId)) {
+      this.skippedTweets.push({
+        tweetId,
+        tweetUrl,
+        reason,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Record a tweet that disappeared from DOM before we could process it
+  recordMissed(tweetId, tweetUrl, context) {
+    if (!this.processedTweetIds.has(tweetId) && !this.missedTweets.find(m => m.tweetId === tweetId)) {
+      this.missedTweets.push({
+        tweetId,
+        tweetUrl,
+        context: context || "Tweet disappeared from DOM during processing",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Analyze gaps in processing to find potential skips
+  analyzeGaps() {
+    const gaps = [];
+    const seenArray = Array.from(this.allSeenTweetIds);
+    const processedArray = Array.from(this.processedTweetIds);
+
+    // Find tweets we saw but never processed
+    for (const tweetId of seenArray) {
+      if (!this.processedTweetIds.has(tweetId)) {
+        const tweetInfo = this.processingOrder.find(t => t.id === tweetId);
+        gaps.push({
+          tweetId,
+          tweetUrl: tweetInfo?.url || tweetId,
+          reason: "Seen but not processed",
+          firstSeen: tweetInfo?.timestamp,
+        });
+      }
+    }
+
+    return gaps;
+  }
+
+  // Generate comprehensive report
+  generateReport() {
+    const gaps = this.analyzeGaps();
+
+    return {
+      summary: {
+        totalTweetsSeen: this.allSeenTweetIds.size,
+        tweetsProcessed: this.processedTweetIds.size,
+        tweetsSkipped: this.skippedTweets.length,
+        tweetsMissed: this.missedTweets.length,
+        gapsDetected: gaps.length,
+        completionRate: this.allSeenTweetIds.size > 0
+          ? ((this.processedTweetIds.size / this.allSeenTweetIds.size) * 100).toFixed(2) + '%'
+          : '0%'
+      },
+      skippedTweets: this.skippedTweets,
+      missedTweets: this.missedTweets,
+      gaps: gaps,
+      processingOrder: this.processingOrder.map(t => ({
+        id: t.id,
+        url: t.url,
+        processed: this.processedTweetIds.has(t.id)
+      }))
+    };
+  }
+
+  // Save report to file
+  async saveReport(reportPath = SKIP_REPORT_FILE) {
+    try {
+      const dir = path.dirname(reportPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      const report = this.generateReport();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+      const filename = reportPath.replace('.json', `-${timestamp}.json`);
+
+      fs.writeFileSync(filename, JSON.stringify(report, null, 2));
+      console.log(`\n📊 Skip report saved to: ${filename}`);
+
+      // Also save a readable text version
+      const textReport = this.generateTextReport(report);
+      const textFilename = filename.replace('.json', '.txt');
+      fs.writeFileSync(textFilename, textReport);
+      console.log(`📄 Readable report saved to: ${textFilename}`);
+
+      return filename;
+    } catch (error) {
+      console.error(`❌ Failed to save skip report: ${error.message}`);
+      return null;
+    }
+  }
+
+  // Generate human-readable text report
+  generateTextReport(report) {
+    let text = "=" .repeat(80) + "\n";
+    text += "TWEET PROCESSING SKIP REPORT\n";
+    text += "=" .repeat(80) + "\n\n";
+
+    text += "SUMMARY\n";
+    text += "-".repeat(40) + "\n";
+    text += `Total Tweets Seen:        ${report.summary.totalTweetsSeen}\n`;
+    text += `Tweets Successfully Processed: ${report.summary.tweetsProcessed}\n`;
+    text += `Tweets Skipped:            ${report.summary.tweetsSkipped}\n`;
+    text += `Tweets Missed (DOM loss):  ${report.summary.tweetsMissed}\n`;
+    text += `Gaps Detected:            ${report.summary.gapsDetected}\n`;
+    text += `Completion Rate:           ${report.summary.completionRate}\n\n`;
+
+    if (report.skippedTweets.length > 0) {
+      text += "SKIPPED TWEETS (Seen but not processed)\n";
+      text += "-".repeat(40) + "\n";
+      report.skippedTweets.forEach((skip, i) => {
+        text += `${i + 1}. ${skip.tweetUrl}\n`;
+        text += `   Reason: ${skip.reason}\n`;
+        text += `   Time: ${skip.timestamp}\n\n`;
+      });
+    }
+
+    if (report.missedTweets.length > 0) {
+      text += "MISSED TWEETS (Disappeared from DOM)\n";
+      text += "-".repeat(40) + "\n";
+      report.missedTweets.forEach((miss, i) => {
+        text += `${i + 1}. ${miss.tweetUrl}\n`;
+        text += `   Context: ${miss.context}\n`;
+        text += `   Time: ${miss.timestamp}\n\n`;
+      });
+    }
+
+    if (report.gaps.length > 0) {
+      text += "GAPS ANALYSIS (Seen but not processed)\n";
+      text += "-".repeat(40) + "\n";
+      report.gaps.forEach((gap, i) => {
+        text += `${i + 1}. ${gap.tweetUrl}\n`;
+        text += `   Reason: ${gap.reason}\n`;
+        if (gap.firstSeen) {
+          text += `   First seen: ${new Date(gap.firstSeen).toISOString()}\n`;
+        }
+        text += "\n";
+      });
+    }
+
+    if (report.skippedTweets.length === 0 && report.missedTweets.length === 0 && report.gaps.length === 0) {
+      text += "✅ NO TWEETS WERE SKIPPED! All seen tweets were processed.\n\n";
+    }
+
+    text += "=" .repeat(80) + "\n";
+    text += "ACTION ITEMS\n";
+    text += "=" .repeat(80) + "\n";
+    text += "The following tweet links can be processed manually:\n\n";
+
+    const allSkipped = [...report.skippedTweets, ...report.missedTweets, ...report.gaps];
+    const uniqueSkipped = new Map();
+    allSkipped.forEach(item => {
+      if (!uniqueSkipped.has(item.tweetId)) {
+        uniqueSkipped.set(item.tweetId, item.tweetUrl || item.tweetId);
+      }
+    });
+
+    if (uniqueSkipped.size > 0) {
+      Array.from(uniqueSkipped.values()).forEach((url, i) => {
+        text += `${i + 1}. ${url}\n`;
+      });
+    } else {
+      text += "None - all tweets were processed successfully!\n";
+    }
+
+    text += "\n" + "=".repeat(80) + "\n";
+
+    return text;
+  }
+
+  // Real-time logging of skips
+  logSkip(tweetId, tweetUrl, reason) {
+    console.log(`⚠️ SKIP DETECTED: ${tweetUrl}`);
+    console.log(`   Reason: ${reason}`);
+    this.recordSkipped(tweetId, tweetUrl, reason);
+  }
+
+  logMissed(tweetId, tweetUrl, context) {
+    console.log(`❌ MISSED TWEET: ${tweetUrl}`);
+    console.log(`   Context: ${context}`);
+    this.recordMissed(tweetId, tweetUrl, context);
+  }
+}
+
 // Ensure base folder
 if (!fs.existsSync(BASE_USER_DATA_DIR))
   fs.mkdirSync(BASE_USER_DATA_DIR, { recursive: true });
@@ -240,8 +461,11 @@ async function isLoggedIn(page) {
   }
 }
 
-// ================== ACTION LOGIC ==================
+// ================== ENHANCED ACTION LOGIC ==================
 async function processProfile(profileDir, profileName, accountIndex = 0) {
+  // Initialize skip tracker
+  const skipTracker = new SkipTracker();
+
   // Clear Chrome session files BEFORE launching to prevent tab restore
   clearChromeSession(profileDir);
 
@@ -358,7 +582,7 @@ async function processProfile(profileDir, profileName, accountIndex = 0) {
     // Additional wait to ensure all initial tweets are fetched
     await sleep(2000);
 
-    console.log(`\n🎯 Starting NORMAL MODE - Processing from top to bottom...`);
+    console.log(`\n🎯 Starting ENHANCED MODE - With comprehensive skip detection...`);
     console.log(`📍 Target Profile: ${PROFILE_URL}`);
     console.log(
       `⚙️ Actions enabled: ${DO_LIKE ? "✅ Like" : "❌ Like"}, ${DO_RETWEET ? "✅ Retweet" : "❌ Retweet"}, ${DO_BOOKMARK ? "✅ Bookmark" : "❌ Bookmark"}, ${DO_COMMENT ? "✅ Comment" : "❌ Comment"}`,
@@ -391,8 +615,6 @@ async function processProfile(profileDir, profileName, accountIndex = 0) {
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
     let processedTweets = 0;
-    let processedTweetIds = new Set(); // Track processed tweets to avoid duplicates
-    let allSeenTweetIds = new Set(); // Track ALL tweets we've ever seen (including skipped)
     let lastHeight = 0;
     let scrollAttempts = 0;
     const MAX_SCROLL_ATTEMPTS = 20; // Stop if no new tweets after this many scrolls
@@ -431,263 +653,253 @@ async function processProfile(profileDir, profileName, accountIndex = 0) {
       const currentTweetCount = tweets.length;
       console.log(`📜 Found ${currentTweetCount} tweets on current screen`);
 
-      // Process tweets from top to bottom (newest to oldest) - natural reading order
-      for (let i = 0; i < currentTweetCount; i++) {
+      // Process tweets in CHUNKS to avoid DOM staleness
+      for (let chunkStart = 0; chunkStart < currentTweetCount; chunkStart += CHUNK_SIZE) {
         if (MAX_TWEETS && processedTweets >= MAX_TWEETS) break;
 
-        try {
-          const tweet = tweets[i];
-
-          // Check for user commands during tweet processing
-          if (userStopped) {
-            console.log(`\n🛑 User requested stop during processing.`);
-            break;
-          }
-
-          // Get tweet ID and full URL to check if already processed
-          const tweetInfo = await page.evaluate((el) => {
-            const link = el.querySelector('a[href*="/status/"]');
-            if (!link) return null;
-            const href = link.getAttribute("href");
-            // Ensure we have the full URL
-            return href.startsWith("http") ? href : `https://x.com${href}`;
-          }, tweet);
-
-          if (!tweetInfo) {
-            continue; // Skip if no ID
-          }
-
-          // Track all tweets we've seen
-          allSeenTweetIds.add(tweetInfo);
-
-          if (processedTweetIds.has(tweetInfo)) {
-            continue; // Skip if already processed
-          }
-
-          processedTweetIds.add(tweetInfo);
-
-          // Check if we've reached the stop tweet
-          if (stopAtTweetId && tweetInfo.includes(stopAtTweetId)) {
-            console.log(`\n🛑 Reached stop marker tweet: ${tweetInfo}`);
-            console.log(`✅ Processing complete! Stopped at designated tweet.`);
-            console.log(`📊 Total tweets processed: ${processedTweets}`);
-            return {
-              name: profileName,
-              success: true,
-              tweetsProcessed: processedTweets,
-              stoppedAt: stopAtTweetId,
-            };
-          }
-
-          // Only show detailed log every 20 tweets
-          if (processedTweets % 20 === 0) {
-            console.log(
-              `\n🎯 Processing tweet ${processedTweets + 1}: ${tweetInfo}`,
-            );
-          }
-
-          // Scroll tweet into view and wait for it to be ready
-          await page.evaluate((el) => {
-            el.scrollIntoView({ behavior: "smooth", block: "center" });
-          }, tweet);
-
-          // Wait for tweet to be properly in view and loaded
-          await sleepWithJitter(600, accountIndex);
-
-          // Additional wait to ensure tweet actions are loaded
-          await sleep(300);
-
-          // ❤️ Like (direct from timeline, don't open tweet)
-          if (DO_LIKE) {
-            try {
-              // Do everything in one evaluate call to avoid "detached" errors
-              const result = await page.evaluate((tweetUrl) => {
-                // Find the tweet by its URL
-                const links = Array.from(
-                  document.querySelectorAll('a[href*="/status/"]'),
-                );
-                const targetLink = links.find(
-                  (l) =>
-                    l.href === tweetUrl ||
-                    l.href.includes(tweetUrl.split("/status/")[1]),
-                );
-                if (!targetLink)
-                  return { success: false, reason: "tweet not found" };
-
-                const tweetEl = targetLink.closest('[data-testid="tweet"]');
-                if (!tweetEl)
-                  return { success: false, reason: "tweet element not found" };
-
-                // Look for both like and unlike buttons (when already liked, it changes to unlike)
-                const likeButton =
-                  tweetEl.querySelector('[data-testid="like"]') ||
-                  tweetEl.querySelector('[data-testid="unlike"]');
-                if (!likeButton)
-                  return { success: false, reason: "like button not found" };
-
-                const ariaLabel = likeButton.getAttribute("aria-label");
-                const isLiked =
-                  ariaLabel?.includes("Unlike") ||
-                  ariaLabel?.includes("Liked") ||
-                  likeButton.querySelector('svg[g="red"]') !== null;
-
-                if (!isLiked) {
-                  likeButton.click();
-                  return { success: true, action: "liked" };
-                }
-                return { success: true, action: "already liked" };
-              }, tweetInfo);
-
-              if (result.success) {
-                if (result.action === "liked") {
-                  await sleepWithJitter(300, accountIndex); // Only wait when we actually clicked
-                }
-                // Skip immediately when already liked - no log needed
-              } else {
-                console.log(
-                  `⚠️ Like error: ${result.reason} | Tweet: ${tweetInfo}`,
-                );
+        // Check for user commands
+        if (userStopped) break;
+        if (userPaused) {
+          console.log(`⏸️ Paused. Waiting for continue command...`);
+          await new Promise((resolve) => {
+            const checkPause = setInterval(() => {
+              if (!userPaused || userStopped) {
+                clearInterval(checkPause);
+                resolve();
               }
-            } catch (e) {
-              console.log(`⚠️ Like error: ${e.message} | Tweet: ${tweetInfo}`);
-            }
-          }
-
-          // 🔁 Retweet (direct from timeline, don't open tweet)
-          if (DO_RETWEET) {
-            try {
-              const result = await page.evaluate((tweetUrl) => {
-                const links = Array.from(
-                  document.querySelectorAll('a[href*="/status/"]'),
-                );
-                const targetLink = links.find(
-                  (l) =>
-                    l.href === tweetUrl ||
-                    l.href.includes(tweetUrl.split("/status/")[1]),
-                );
-                if (!targetLink)
-                  return { success: false, reason: "tweet not found" };
-
-                const tweetEl = targetLink.closest('[data-testid="tweet"]');
-                if (!tweetEl)
-                  return { success: false, reason: "tweet element not found" };
-
-                // Look for both retweet and unretweet buttons
-                const retweetButton =
-                  tweetEl.querySelector('[data-testid="retweet"]') ||
-                  tweetEl.querySelector('[data-testid="unretweet"]');
-                if (!retweetButton)
-                  return { success: false, reason: "retweet button not found" };
-
-                const ariaLabel = retweetButton.getAttribute("aria-label");
-                const isRetweeted =
-                  ariaLabel?.includes("Undo retweet") ||
-                  ariaLabel?.includes("Retweeted");
-
-                if (!isRetweeted) {
-                  retweetButton.click();
-                  return { success: true, action: "clicked" };
-                }
-                return { success: true, action: "already retweeted" };
-              }, tweetInfo);
-
-              if (result.success && result.action === "clicked") {
-                await sleepWithJitter(300, accountIndex);
-
-                const menuItems = await page.$$('[role="menuitem"]');
-                if (menuItems.length > 0) {
-                  await menuItems[0].click();
-                  await sleepWithJitter(700, accountIndex);
-                }
-              }
-              // No log for already retweeted
-              else if (!result.success) {
-                console.log(
-                  `⚠️ Retweet error: ${result.reason} | Tweet: ${tweetInfo}`,
-                );
-              }
-            } catch (e) {
-              console.log(
-                `⚠️ Retweet error: ${e.message} | Tweet: ${tweetInfo}`,
-              );
-            }
-          }
-
-          // 🔖 Bookmark (direct from timeline, don't open tweet)
-          if (DO_BOOKMARK) {
-            try {
-              const result = await page.evaluate((tweetUrl) => {
-                const links = Array.from(
-                  document.querySelectorAll('a[href*="/status/"]'),
-                );
-                const targetLink = links.find(
-                  (l) =>
-                    l.href === tweetUrl ||
-                    l.href.includes(tweetUrl.split("/status/")[1]),
-                );
-                if (!targetLink)
-                  return { success: false, reason: "tweet not found" };
-
-                const tweetEl = targetLink.closest('[data-testid="tweet"]');
-                if (!tweetEl)
-                  return { success: false, reason: "tweet element not found" };
-
-                // Look for both bookmark and remove-bookmark buttons
-                const bookmarkButton =
-                  tweetEl.querySelector('[data-testid="bookmark"]') ||
-                  tweetEl.querySelector('[data-testid="removeBookmark"]');
-                if (!bookmarkButton)
-                  return {
-                    success: false,
-                    reason: "bookmark button not found",
-                  };
-
-                const ariaLabel = bookmarkButton.getAttribute("aria-label");
-                const isBookmarked =
-                  ariaLabel?.includes("Remove") ||
-                  ariaLabel?.includes("Bookmarked");
-
-                if (!isBookmarked) {
-                  bookmarkButton.click();
-                  return { success: true, action: "bookmarked" };
-                }
-                return { success: true, action: "already bookmarked" };
-              }, tweetInfo);
-
-              if (result.success) {
-                if (result.action === "bookmarked") {
-                  await sleepWithJitter(500, accountIndex); // Only wait when we actually clicked
-                }
-                // No log for already bookmarked
-              } else {
-                console.log(
-                  `⚠️ Bookmark error: ${result.reason} | Tweet: ${tweetInfo}`,
-                );
-              }
-            } catch (e) {
-              console.log(
-                `⚠️ Bookmark error: ${e.message} | Tweet: ${tweetInfo}`,
-              );
-            }
-          }
-
-          processedTweets++;
-
-          // Show progress summary every 20 tweets
-          if (processedTweets % 20 === 0) {
-            console.log(
-              `📊 Progress: ${processedTweets}${MAX_TWEETS ? "/" + MAX_TWEETS : ""} tweets processed | 💪 Still working...`,
-            );
-            console.log(`🎮 CONTROLS: Ctrl+C to stop | Type: pause/continue`);
-          }
-
-          // Small delay between tweets to appear more natural
-          await sleepWithJitter(SLEEP_MS, accountIndex);
-        } catch (e) {
-          console.log(
-            `⚠️ Error processing tweet: ${e.message} | Tweet: ${tweetInfo}`,
-          );
+            }, 500);
+          });
+          if (userStopped) break;
+          console.log(`▶️ Resuming...`);
         }
+
+        // RE-FRESH DOM for each chunk to ensure we have current elements
+        const freshTweets = await page.$$('[data-testid="tweet"]');
+        const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, freshTweets.length);
+
+        console.log(`   Processing chunk ${Math.floor(chunkStart/CHUNK_SIZE) + 1}: tweets ${chunkStart + 1}-${chunkEnd}`);
+
+        for (let i = chunkStart; i < chunkEnd; i++) {
+          if (MAX_TWEETS && processedTweets >= MAX_TWEETS) break;
+          if (userStopped) break;
+
+          try {
+            const tweet = freshTweets[i];
+            if (!tweet) {
+              console.log(`   ⚠️ Tweet ${i} became null (removed from DOM)`);
+              continue;
+            }
+
+            // Get tweet ID and full URL
+            const tweetInfo = await page.evaluate((el) => {
+              const link = el.querySelector('a[href*="/status/"]');
+              if (!link) return null;
+              const href = link.getAttribute("href");
+              return href.startsWith("http") ? href : `https://x.com${href}`;
+            }, tweet);
+
+            if (!tweetInfo) {
+              skipTracker.logSkip("unknown", "N/A", "No tweet ID found in element");
+              continue;
+            }
+
+            // Record that we've seen this tweet
+            skipTracker.recordTweet(tweetInfo, tweetInfo);
+
+            // Check if already processed
+            if (skipTracker.processedTweetIds.has(tweetInfo)) {
+              console.log(`   ⏭️ Already processed: ${tweetInfo}`);
+              continue;
+            }
+
+            // PRESENCE CHECK: Verify tweet is still in DOM
+            if (PRESENCE_CHECK) {
+              const isStillInDOM = await page.evaluate((el) => {
+                return document.body.contains(el);
+              }, tweet);
+
+              if (!isStillInDOM) {
+                skipTracker.logMissed(tweetInfo, tweetInfo, "Tweet removed from DOM during chunk processing");
+                console.log(`   ❌ Tweet disappeared from DOM: ${tweetInfo}`);
+                continue;
+              }
+            }
+
+            // Check if we've reached the stop tweet
+            if (stopAtTweetId && tweetInfo.includes(stopAtTweetId)) {
+              console.log(`\n🛑 Reached stop marker tweet: ${tweetInfo}`);
+              console.log(`✅ Processing complete! Stopped at designated tweet.`);
+              console.log(`📊 Total tweets processed: ${processedTweets}`);
+
+              // Generate and save final report
+              await skipTracker.saveReport();
+
+              return {
+                name: profileName,
+                success: true,
+                tweetsProcessed: processedTweets,
+                stoppedAt: stopAtTweetId,
+                skipReport: skipTracker.generateReport()
+              };
+            }
+
+            // Only show detailed log every 20 tweets
+            if (processedTweets % 20 === 0) {
+              console.log(
+                `\n🎯 Processing tweet ${processedTweets + 1}: ${tweetInfo}`,
+              );
+            } else {
+              console.log(`   ❤️ Processing: ${tweetInfo}`);
+            }
+
+            // Scroll tweet into view and wait for it to be ready
+            await page.evaluate((el) => {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, tweet);
+
+            // Wait for tweet to be properly in view and loaded
+            await sleepWithJitter(300, accountIndex);
+
+            // Additional presence check after scrolling
+            if (PRESENCE_CHECK) {
+              const isStillInDOM = await page.evaluate((el) => {
+                return document.body.contains(el);
+              }, tweet);
+
+              if (!isStillInDOM) {
+                skipTracker.logMissed(tweetInfo, tweetInfo, "Tweet disappeared after scrolling into view");
+                console.log(`   ❌ Tweet disappeared after scroll: ${tweetInfo}`);
+                continue;
+              }
+            }
+
+            // Additional wait to ensure tweet actions are loaded
+            await sleep(200);
+
+            // ❤️ Like (direct from timeline, don't open tweet)
+            if (DO_LIKE) {
+              try {
+                const likeButton = await tweet.$('[data-testid="like"]');
+                if (likeButton) {
+                  const isLiked = await page.evaluate((el) => {
+                    const ariaLabel = el.getAttribute("aria-label");
+                    return (
+                      ariaLabel?.includes("Unlike") ||
+                      ariaLabel?.includes("Liked") ||
+                      el.querySelector('svg[g="red"]') !== null
+                    );
+                  }, likeButton);
+
+                  if (!isLiked) {
+                    await likeButton.click();
+                    await sleepWithJitter(250, accountIndex); // Reduced delay
+                    console.log(`   ❤️ Liked`);
+                  } else {
+                    console.log(`   ⏭️ Already liked`);
+                  }
+                }
+              } catch (e) {
+                console.log(`   ⚠️ Like error: ${e.message} | Tweet: ${tweetInfo}`);
+              }
+            }
+
+            // 🔁 Retweet (direct from timeline, don't open tweet)
+            if (DO_RETWEET) {
+              try {
+                const retweetButton = await tweet.$('[data-testid="retweet"]');
+                if (retweetButton) {
+                  const isRetweeted = await page.evaluate((el) => {
+                    const ariaLabel = el.getAttribute("aria-label");
+                    return (
+                      ariaLabel?.includes("Undo retweet") ||
+                      ariaLabel?.includes("Retweeted")
+                    );
+                  }, retweetButton);
+
+                  if (!isRetweeted) {
+                    await retweetButton.click();
+                    await sleepWithJitter(300, accountIndex);
+
+                    const menuItems = await page.$$('[role="menuitem"]');
+                    if (menuItems.length > 0) {
+                      await menuItems[0].click();
+                      await sleepWithJitter(700, accountIndex);
+                      console.log(`   🔁 Retweeted`);
+                    }
+                  } else {
+                    console.log(`   ⏭️ Already retweeted`);
+                  }
+                }
+              } catch (e) {
+                console.log(
+                  `   ⚠️ Retweet error: ${e.message} | Tweet: ${tweetInfo}`,
+                );
+              }
+            }
+
+            // 🔖 Bookmark (direct from timeline, don't open tweet)
+            if (DO_BOOKMARK) {
+              try {
+                const bookmarkButton = await tweet.$('[data-testid="bookmark"]');
+                if (bookmarkButton) {
+                  const isBookmarked = await page.evaluate((el) => {
+                    const ariaLabel = el.getAttribute("aria-label");
+                    return (
+                      ariaLabel?.includes("Remove") ||
+                      ariaLabel?.includes("Bookmarked")
+                    );
+                  }, bookmarkButton);
+
+                  if (!isBookmarked) {
+                    await bookmarkButton.click();
+                    await sleepWithJitter(500, accountIndex);
+                    console.log(`   🔖 Bookmarked`);
+                  } else {
+                    console.log(`   ⏭️ Already bookmarked`);
+                  }
+                }
+              } catch (e) {
+                console.log(
+                  `   ⚠️ Bookmark error: ${e.message} | Tweet: ${tweetInfo}`,
+                );
+              }
+            }
+
+            // SUCCESSFULLY PROCESSED - mark as done
+            processedTweets++;
+            skipTracker.markProcessed(tweetInfo, tweetInfo);
+
+            // Show progress summary every 20 tweets
+            if (processedTweets % 20 === 0) {
+              console.log(
+                `📊 Progress: ${processedTweets}${MAX_TWEETS ? "/" + MAX_TWEETS : ""} tweets processed | 💪 Still working...`,
+              );
+              console.log(`🎮 CONTROLS: Ctrl+C to stop | Type: pause/continue`);
+            }
+
+            // Small delay between tweets to appear more natural
+            await sleepWithJitter(SLEEP_MS, accountIndex);
+          } catch (e) {
+            console.log(
+              `   ⚠️ Error processing tweet: ${e.message} | Tweet index: ${i}`,
+            );
+            // Try to get tweet info for error logging
+            try {
+              const errorTweetInfo = await page.evaluate((el) => {
+                const link = el.querySelector('a[href*="/status/"]');
+                if (!link) return "unknown";
+                const href = link.getAttribute("href");
+                return href.startsWith("http") ? href : `https://x.com${href}`;
+              }, freshTweets[i]);
+              skipTracker.logMissed(errorTweetInfo, errorTweetInfo, `Processing error: ${e.message}`);
+            } catch {
+              skipTracker.logMissed(`index-${i}`, "N/A", `Processing error: ${e.message}`);
+            }
+          }
+        }
+
+        // Small delay between chunks to let DOM stabilize
+        await sleep(500);
       }
 
       // 📊 Progress check every 30 tweets
@@ -705,7 +917,7 @@ async function processProfile(profileDir, profileName, accountIndex = 0) {
 
       // Smooth scroll down using percentage of viewport to load more tweets
       console.log(
-        `\n⬇️ Scrolling down (60% of viewport) to load more tweets...`,
+        `\n⬇️ Scrolling down (${Math.round(SCROLL_PERCENTAGE * 100)}% of viewport) to load more tweets...`,
       );
 
       const viewportHeight = await page.evaluate(() => window.innerHeight);
@@ -784,10 +996,30 @@ async function processProfile(profileDir, profileName, accountIndex = 0) {
     console.log(
       `\n🎉 Session complete! Total tweets processed: ${processedTweets}`,
     );
+
+    // Generate and save final skip report
+    console.log(`\n📊 Generating final skip report...`);
+    const reportPath = await skipTracker.saveReport();
+    const finalReport = skipTracker.generateReport();
+
+    console.log(`\n📊 SKIP REPORT SUMMARY:`);
+    console.log(`   Total tweets seen: ${finalReport.summary.totalTweetsSeen}`);
+    console.log(`   Tweets processed: ${finalReport.summary.tweetsProcessed}`);
+    console.log(`   Tweets missed: ${finalReport.summary.tweetsMissed}`);
+    console.log(`   Completion rate: ${finalReport.summary.completionRate}`);
+
+    if (finalReport.summary.tweetsMissed > 0) {
+      console.log(`\n⚠️ ACTION REQUIRED: Check skip report for missed tweet links!`);
+    } else {
+      console.log(`\n✅ PERFECT! No tweets were missed!`);
+    }
+
     return {
       name: profileName,
       success: true,
       tweetsProcessed: processedTweets,
+      skipReport: finalReport,
+      skipReportPath: reportPath
     };
   } catch (err) {
     console.error(`🔥 Error with ${profileName}:`, err.message);
@@ -919,6 +1151,13 @@ async function manualLogin(profileDir, profileName) {
   console.log("\n================== SUMMARY ==================");
   if (result.success) {
     console.log(`✅ ${ACCOUNT_NAME} — Success`);
+    if (result.skipReport) {
+      console.log(`📊 Tweets processed: ${result.tweetsProcessed}`);
+      console.log(`📊 Completion rate: ${result.skipReport.summary.completionRate}`);
+      if (result.skipReportPath) {
+        console.log(`📁 Skip report: ${result.skipReportPath}`);
+      }
+    }
   } else {
     console.log(`⚠️ ${ACCOUNT_NAME} — Failed: ${result.reason || ""}`);
   }
