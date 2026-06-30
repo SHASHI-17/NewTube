@@ -163,7 +163,7 @@ function clearChromeSession(profileDir) {
       path.join(profileDir, "Default", "Current Tabs"),
       path.join(profileDir, "Default", "Last Session"),
       path.join(profileDir, "Default", "Last Tabs"),
-      path.join(profileDir, "Default", "Preferences"),
+      // path.join(profileDir, "Default", "Preferences"),
     ];
 
     sessionFiles.forEach((file) => {

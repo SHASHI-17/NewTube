@@ -3,6 +3,7 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import fs from "fs";
 import path from "path";
 import readline from "readline";
+import axios from "axios";
 
 // 🧩 Enable stealth plugin to bypass bot detection
 puppeteer.use(StealthPlugin());
@@ -17,19 +18,46 @@ puppeteer.use(StealthPlugin());
 // The profile URL will be automatically extracted from the end_url
 // Tasks will be processed 2 at a time
 const TASKS = [
+  // {
+  //   name: "HIT-1", // Your name for this task
+  //   account: "meera", // Which automation account to use (Account_hibye folder)
+  //   end_url: "https://x.com/hit_tl1/status/2071575829994184893",
+  //   actions: ["like"],
+  // },
+  // // Add more tasks as needed
+
+  // {
+  //   name: "hit RT",
+  //   account: "ivy",
+  //   end_url: "https://x.com/Bunty277/status/2071576351199449537",
+  //   actions: ["repost"],
+  // },
+  // {
+  //   name: "WE RT",
+  //   account: "meera",
+  //   end_url: "https://x.com/yaduvnair/status/2071600147994419532",
+  //   actions: ["repost"],
+  // },
+  // {
+  //   name: "jalebi huin", // Your name for this task
+  //   account: "ivy", // Which automation account to use (Account_hibye folder)
+  //   end_url: "https://x.com/jalebihun/status/2071585392369795247",
+  //   actions: ["repost"],
+  // },
+  // Add more tasks as needed
+
   {
-    name: "HIT-1", // Your name for this task
-    account: "hibye", // Which automation account to use (Account_hibye folder)
-    end_url: "https://x.com/hit_tl1/status/2071076361498669312",
+    name: "rajbhoghun like",
+    account: "ivy",
+    end_url: "https://x.com/rajbhoghun/status/2071584701710545260",
     actions: ["like"],
   },
-  // Add more tasks as needed
-  {
-    name: "hit RT",
-    account: "anchinka",
-    end_url: "https://x.com/Bunty277/status/2071077532691005796",
-    actions: ["repost"],
-  },
+  // {
+  //   name: "WE RT",
+  //   account: "meera",
+  //   end_url: "https://x.com/yaduvnair/status/2071600147994419532",
+  //   actions: ["repost"],
+  // },
 ];
 
 // Available actions: 'like', 'repost', 'bookmark', 'comment'
@@ -70,6 +98,119 @@ const SCROLL_PAUSE_MS = 2000; // Pause between scrolls to find new tweets
 const TWEETS_BEFORE_VERIFY = null; // Disabled - no verification, just keep scrolling
 const SCROLL_PERCENTAGE = 0.4; // Scroll by 40% of viewport height to be safer and not miss tweets
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
+// ================== TELEGRAM BOT CONFIG ==================
+const BOT_TOKEN = "8948612339:AAGaauKopSBaM8EgWkXZ5nzHvZlnR9RWhl0";
+const TELEGRAM_CHAT_IDS = ["1991164194", "1956483216", "8749929962"];
+const DO_DOUBLE_PROCESSING = true; // Process each task twice for quality control
+
+// Telegram Bot Functions
+async function sendTelegramMessage(message) {
+  for (const chatId of TELEGRAM_CHAT_IDS) {
+    try {
+      await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        chat_id: chatId,
+        text: message,
+        parse_mode: "HTML",
+      });
+      console.log(`📤 Telegram message sent to ${chatId}`);
+    } catch (error) {
+      console.error(`❌ Telegram error for ${chatId}:`, error.message);
+    }
+  }
+}
+
+async function sendTelegramAlert(message) {
+  const alertMessage = `🚨 <b>ALERT</b>\n\n${message}`;
+  await sendTelegramMessage(alertMessage);
+}
+
+async function sendTelegramReport(report) {
+  const reportMessage = `📊 <b>REPORT</b>\n\n${report}`;
+  await sendTelegramMessage(reportMessage);
+}
+
+async function sendTaskStart(task, accountName, passNumber) {
+  const message =
+    `🚀 <b>TASK STARTED</b>\n\n` +
+    `📝 Task: <b>${task.name}</b>\n` +
+    `👤 Account: <b>${accountName}</b>\n` +
+    `🎯 Target: ${task.end_url}\n` +
+    `⚡ Actions: ${task.actions.join(", ")}\n` +
+    `🔄 Pass: <b>${passNumber === 1 ? "FIRST PASS" : "SECOND PASS (QC)"}</b>`;
+  await sendTelegramMessage(message);
+}
+
+async function sendTaskComplete(task, accountName, passNumber, result) {
+  let message =
+    `✅ <b>PASS ${passNumber} COMPLETE</b>\n\n` +
+    `📝 Task: <b>${task.name}</b>\n` +
+    `👤 Account: <b>${accountName}</b>\n` +
+    `⚡ Actions: ${task.actions.join(", ")}\n` +
+    `🎯 Target: ${task.end_url}\n`;
+
+  if (result.success) {
+    message += `✅ Status: <b>SUCCESS</b>\n`;
+    message += `📊 Tweets processed: <b>${result.tweetsProcessed}</b>\n`;
+
+    // Add failure info if any
+    if (
+      result.failedLikes?.length > 0 ||
+      result.failedRetweets?.length > 0 ||
+      result.failedBookmarks?.length > 0
+    ) {
+      message += `\n⚠️ <b>Issues Found:</b>\n`;
+      if (result.failedLikes?.length > 0) {
+        message += `\n❌ Failed Likes: ${result.failedLikes.length}\n`;
+      }
+      if (result.failedRetweets?.length > 0) {
+        message += `\n🔁 Failed Retweets: ${result.failedRetweets.length}\n`;
+      }
+      if (result.failedBookmarks?.length > 0) {
+        message += `\n🔖 Failed Bookmarks: ${result.failedBookmarks.length}\n`;
+      }
+    }
+  } else {
+    message += `❌ Status: <b>FAILED</b>\n`;
+    message += `💡 Reason: ${result.reason || "Unknown error"}`;
+  }
+
+  await sendTelegramMessage(message);
+}
+
+async function sendFinalSummary(allResults) {
+  let message = `🎉 <b>ALL TASKS COMPLETE - FINAL SUMMARY</b>\n\n`;
+
+  const tasksByTaskId = {};
+  for (const result of allResults) {
+    const taskId = result.taskId || "unknown";
+    if (!tasksByTaskId[taskId]) {
+      tasksByTaskId[taskId] = {
+        task: result.task,
+        results: [],
+      };
+    }
+    tasksByTaskId[taskId].results.push(result);
+  }
+
+  for (const taskId in tasksByTaskId) {
+    const { task, results } = tasksByTaskId[taskId];
+    message += `\n📝 <b>${task?.name || taskId}</b>\n`;
+    message += `   👤 Account: <b>${task?.account || "N/A"}</b>\n`;
+    message += `   ⚡ Actions: ${task?.actions?.join(", ") || "N/A"}\n`;
+
+    for (const result of results) {
+      const pass = result.passNumber === 2 ? "SECOND (QC)" : "FIRST";
+      if (result.success) {
+        message += `   ✅ Pass ${pass}: SUCCESS (${result.tweetsProcessed || 0} tweets)\n`;
+      } else {
+        message += `   ❌ Pass ${pass}: FAILED - ${result.reason || "Unknown"}\n`;
+      }
+    }
+  }
+
+  await sendTelegramMessage(message);
+}
 
 // ================== HELPER FUNCTIONS ==================
 // Extract profile URL from tweet URL
@@ -206,7 +347,7 @@ function clearChromeSession(profileDir) {
       path.join(profileDir, "Default", "Current Tabs"),
       path.join(profileDir, "Default", "Last Session"),
       path.join(profileDir, "Default", "Last Tabs"),
-      path.join(profileDir, "Default", "Preferences"),
+      // path.join(profileDir, "Default", "Preferences"),
     ];
 
     sessionFiles.forEach((file) => {
@@ -266,6 +407,7 @@ async function processProfile(
   accountIndex,
   batchSlot = 0,
   task = null,
+  passNumber = 1,
 ) {
   // Clear Chrome session files BEFORE launching to prevent tab restore
   clearChromeSession(profileDir);
@@ -283,6 +425,11 @@ async function processProfile(
   const DO_BOOKMARK = task?.actions?.includes("bookmark") || false;
   const DO_COMMENT = task?.actions?.includes("comment") || false;
   const taskId = task?.id || "unknown";
+
+  // Send Telegram notification when task starts
+  if (task) {
+    await sendTaskStart(task, profileName, passNumber);
+  }
 
   console.log(`\n📋 Task ID: ${taskId}`);
   console.log(`📍 Profile: ${profileURL}`);
@@ -448,6 +595,7 @@ async function processProfile(
     const failedLikes = []; // {tweetId, url, reason}
     const failedRetweets = []; // {tweetId, url, reason}
     const failedBookmarks = []; // {tweetId, url, reason}
+    const failedComments = []; // {tweetId, url, reason}
     const skippedTweets = []; // {tweetId, url, reason}
 
     while (true) {
@@ -493,13 +641,21 @@ async function processProfile(
             console.log(`\n🛑 Reached stop marker tweet: ${tweetId}`);
             console.log(`✅ Processing complete! Stopped at designated tweet.`);
             console.log(`📊 Total tweets processed: ${processedTweets}`);
-            return {
+
+            const result = {
               name: profileName,
               success: true,
               tweetsProcessed: processedTweets,
               stoppedAt: stopAtTweetId,
               task,
             };
+
+            // Send Telegram completion notification
+            if (task) {
+              await sendTaskComplete(task, profileName, passNumber, result);
+            }
+
+            return result;
           }
 
           // Only show detailed log every 20 tweets
@@ -605,7 +761,9 @@ async function processProfile(
               await sleep(100); // Wait for element stability
 
               // First check if already retweeted (unretweet button exists)
-              const unretweetButton = await tweet.$('[data-testid="unretweet"]');
+              const unretweetButton = await tweet.$(
+                '[data-testid="unretweet"]',
+              );
               if (unretweetButton) {
                 // Already retweeted - skip silently
                 continue;
@@ -654,7 +812,9 @@ async function processProfile(
               await sleep(100); // Wait for element stability
 
               // First check if already bookmarked (removeBookmark button exists)
-              const removeBookmarkButton = await tweet.$('[data-testid="removeBookmark"]');
+              const removeBookmarkButton = await tweet.$(
+                '[data-testid="removeBookmark"]',
+              );
               if (removeBookmarkButton) {
                 // Already bookmarked - skip silently
                 continue;
@@ -977,6 +1137,23 @@ async function processProfile(
       `\n🎉 Session complete! Total tweets processed: ${processedTweets}`,
     );
 
+    const result = {
+      name: profileName,
+      success: true,
+      tweetsProcessed: processedTweets,
+      task,
+      failedLikes,
+      failedRetweets,
+      failedBookmarks,
+      failedComments,
+      skippedTweets,
+    };
+
+    // Send Telegram completion notification
+    if (task) {
+      await sendTaskComplete(task, profileName, passNumber, result);
+    }
+
     // Generate comprehensive report
     console.log(`\n📋 ===== COMPREHENSIVE REPORT FOR TASK: ${taskId} =====`);
 
@@ -1057,20 +1234,23 @@ async function processProfile(
     console.log(`   Skipped tweets: ${skippedTweets.length}`);
     console.log(`\n======================================================\n`);
 
-    return {
-      name: profileName,
-      success: true,
-      tweetsProcessed: processedTweets,
-      task,
-      failedLikes,
-      failedRetweets,
-      failedBookmarks,
-      failedComments,
-      skippedTweets,
-    };
+    return result;
   } catch (err) {
     console.error(`🔥 Error with ${profileName}:`, err.message);
-    return { name: profileName, success: false, reason: err.message, task };
+
+    const errorResult = {
+      name: profileName,
+      success: false,
+      reason: err.message,
+      task,
+    };
+
+    // Send Telegram error notification
+    if (task) {
+      await sendTaskComplete(task, profileName, passNumber, errorResult);
+    }
+
+    return errorResult;
   } finally {
     try {
       console.log(`\n🔧 Closing browser...`);
@@ -1192,6 +1372,7 @@ async function manualLogin(profileDir, profileName) {
         `\n🔄 Processing task batch ${Math.floor(i / CONCURRENCY) + 1}: ${batch.map((t) => t.name).join(", ")}`,
       );
 
+      // Process first pass for all tasks in batch
       const batchResults = await Promise.all(
         batch.map(async (task, batchIndex) => {
           // Use account field from task
@@ -1216,18 +1397,71 @@ async function manualLogin(profileDir, profileName) {
             taskIndex,
             batchIndex,
             task,
+            1, // First pass
           );
         }),
       );
 
-      results.push(
-        ...batchResults.map((r, idx) => ({
-          ...r,
-          mode: "action",
-          taskId: batch[idx]?.name,
-          task: batch[idx],
-        })),
-      );
+      // If double processing is enabled, run second pass (QC)
+      if (DO_DOUBLE_PROCESSING) {
+        console.log(
+          `\n🔄 Starting SECOND PASS (Quality Control) for batch ${Math.floor(i / CONCURRENCY) + 1}...`,
+        );
+
+        const batchResults2 = await Promise.all(
+          batch.map(async (task, batchIndex) => {
+            const accountName = task.account;
+            const dir = getProfileDir(accountName);
+            const taskIndex = i + batchIndex;
+
+            console.log(`\n🔗 QC Task → Account: ${accountName}`);
+
+            if (batchIndex === 1) {
+              await sleep(3000);
+            }
+
+            return await processProfile(
+              dir,
+              accountName,
+              taskIndex,
+              batchIndex,
+              task,
+              2, // Second pass (QC)
+            );
+          }),
+        );
+
+        results.push(
+          ...batchResults.map((r, idx) => ({
+            ...r,
+            mode: "action",
+            taskId: batch[idx]?.name,
+            task: batch[idx],
+            passNumber: 1,
+          })),
+        );
+
+        results.push(
+          ...batchResults2.map((r, idx) => ({
+            ...r,
+            mode: "action",
+            taskId: batch[idx]?.name,
+            task: batch[idx],
+            passNumber: 2,
+          })),
+        );
+      } else {
+        results.push(
+          ...batchResults.map((r, idx) => ({
+            ...r,
+            mode: "action",
+            taskId: batch[idx]?.name,
+            task: batch[idx],
+            passNumber: 1,
+          })),
+        );
+      }
+
       console.log(
         `\n✅ Batch complete: ${batch.map((t) => t.name).join(", ")}`,
       );
@@ -1235,6 +1469,10 @@ async function manualLogin(profileDir, profileName) {
   }
 
   rl.close();
+
+  // Send final summary to Telegram
+  await sendFinalSummary(results);
+
   console.log("\n================== GLOBAL SUMMARY ==================");
 
   let totalTweetsProcessed = 0;

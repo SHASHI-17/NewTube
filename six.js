@@ -23,12 +23,12 @@ const BASE_USER_DATA_DIR =
 const ACCOUNT_NAMES = [
   "adore",
   "orange",
-  // "bluemoon",
-  // "kiran",
-  // "hibye",
-  // "inyvix",
-  // "bae",
-  // "anchinka",
+  "bluemoon",
+  "kiran",
+  "hibye",
+  "inyvix",
+  "bae",
+  "anchinka",
   // "meera",
   // "ivy",
   // "ixyi",
@@ -200,7 +200,7 @@ function clearChromeSession(profileDir) {
       path.join(profileDir, "Default", "Current Tabs"),
       path.join(profileDir, "Default", "Last Session"),
       path.join(profileDir, "Default", "Last Tabs"),
-      path.join(profileDir, "Default", "Preferences"),
+      // path.join(profileDir, "Default", "Preferences"),
     ];
 
     sessionFiles.forEach((file) => {
@@ -1032,12 +1032,13 @@ async function runScript(globalUsernames) {
     console.log(`total: ${otherUsernames.length}`);
 
     // Send report to Telegram
-    const telegramMessage = `GOT
+    // Send usernames first
+    const usernamesMessage = `${otherUsernames.join("\n")}`;
+    await sendToTelegram(usernamesMessage);
 
-${otherUsernames.join("\n")}
-
-total: ${otherUsernames.length}`;
-    await sendToTelegram(telegramMessage);
+    // Send total separately
+    const totalMessage = `total: ${otherUsernames.length}`;
+    await sendToTelegram(totalMessage);
   }
 
   console.log("\n=============================================\n");

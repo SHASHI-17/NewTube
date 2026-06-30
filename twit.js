@@ -10,23 +10,23 @@ puppeteer.use(StealthPlugin());
 // ================== CONFIG ==================
 const TWEET_URL =
   process.env.TWEET_URL ||
-  "https://x.com/xoeeie/status/2070903360493154625?s=20";
+  "https://x.com/femmenote/status/2071115547341672741?s=20";
 
 const BASE_USER_DATA_DIR =
   process.env.BASE_USER_DATA_DIR ||
   "C:\\Users\\HP\\AppData\\Local\\Google\\Chrome\\User Data\\Automation";
 
 const ACCOUNT_NAMES = [
-  "adore",
-  "orange",
-  "bluemoon",
-  "kiran",
-  "hibye",
-  "inyvix",
-  "bae",
-  "anchinka",
-  "ivy",
-  "meera",
+  // "adore",
+  // "orange",
+  // "bluemoon",
+  // "kiran",
+  // "hibye",
+  // "inyvix",
+  // "bae",
+  // "anchinka",
+  // "ivy",
+  // "meera",
   // "meera",
   // "water2",
   // "water3",
@@ -39,9 +39,9 @@ const HEADLESS = false;
 
 // ================== ACTION CONFIG ==================
 const DO_LIKE = true;
-const DO_BOOKMARK = true;
+const DO_BOOKMARK = false;
 const DO_QUOTE = false; // Quote tweet with random text
-const DO_RETWEET = true; // Simple retweet/repost
+const DO_RETWEET = false; // Simple retweet/repost
 const SLEEP_MS = 1500;
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
@@ -452,7 +452,7 @@ function getProfileDir(name) {
   return dir;
 }
 
-// Clear Chrome session files to prevent tab restore
+// Clear Chrome session files to prevent tab restore (but preserve user settings!)
 function clearChromeSession(profileDir) {
   try {
     const sessionFiles = [
@@ -462,7 +462,7 @@ function clearChromeSession(profileDir) {
       path.join(profileDir, "Default", "Current Tabs"),
       path.join(profileDir, "Default", "Last Session"),
       path.join(profileDir, "Default", "Last Tabs"),
-      path.join(profileDir, "Default", "Preferences"),
+      // ❌ REMOVED: Preferences - this preserves user settings like data saver!
     ];
 
     sessionFiles.forEach((file) => {
