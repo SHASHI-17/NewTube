@@ -2,68 +2,69 @@ import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import fs from "fs";
 import path from "path";
-import readline from "readline";
+import TelegramBot from "node-telegram-bot-api";
+import sound from "sound-play";
 
 // 🧩 Enable stealth plugin to bypass bot detection
 puppeteer.use(StealthPlugin());
 
 // ================== CONFIG ==================
-const PROFILE_URL = "https://x.com/hit_tl1"; // Change to the desired profile URL to process tweets from
-const STOP_AT_TWEET_URL = "https://x.com/hit_tl1/status/2069699897566077111";
-// Example: "https://x.com/username/status/123456789" - will process tweets ABOVE this one and stop when reaching it
-// Set to null to process all tweets on the profile
-
 const BASE_USER_DATA_DIR =
-  process.env.BASE_USER_DATA_DIR ||
   "C:\\Users\\HP\\AppData\\Local\\Google\\Chrome\\User Data\\Automation";
 
-// Multiple accounts configuration
 const ACCOUNT_NAMES = [
-  // "adore",
-  // "orange",
-  // "bluemoon",
-  // "kiran",
-  "hibye",
+  "adore",
+  "orange",
+  "bluemoon",
+  // "one",
+  // "hibye",
   // "inyvix",
   // "bae",
   // "anchinka",
-  // "meera",
-  // "ivy",
-  // "ixyi",
-  // "water1",
-  // "water2",
-  // "water3",
-  // "fire1",
-  // "fire2",
-  // "fire3",
-  // "ivy",
 ];
-const REGISTER_MODE = false; // Set to true to register accounts, false to perform actions
+
 const HEADLESS = false;
-
-// ================== ACTION CONFIG ==================
-// ⚠️ SET THESE TO true/false BEFORE RUNNING ⚠️
-const DO_LIKE = true; // Like tweets while scrolling
-const DO_BOOKMARK = false; // Bookmark tweets while scrolling
-const DO_RETWEET = false; // Retweet tweets while scrolling
-const DO_COMMENT = false; // Comment on tweets while scrolling
-const SLEEP_MS = 600; // Base delay between actions (milliseconds) - optimized for speed
-const ACCOUNT_STAGGER = 4000; // Stagger delay between accounts (ms)
-const MAX_TWEETS = null; // null = unlimited, or set a number like 50 to stop after that many tweets
-const SCROLL_PAUSE_MS = 1800; // Pause between scrolls - optimized for reliable loading
-const TWEETS_BEFORE_VERIFY = null; // Disabled - no verification, just keep scrolling
-const SCROLL_PERCENTAGE = 0.4; // Scroll by 40% of viewport height to be safer and not miss tweets
-const STOP_AT_TWEET_ID = null; // Extract tweet ID from URL, or set to null for no limit
-
-// ================== SKIP DETECTION CONFIG ==================
-const CHUNK_SIZE = 3; // Process tweets in small chunks to avoid DOM staleness
-const OVERLAP_SIZE = 2; // Overlap between chunks to catch missed tweets
-const PRESENCE_CHECK = true; // Verify tweet is still in DOM before processing
-const SKIP_REPORT_DIR = "./skip-reports"; // Directory for skip reports
+const SLEEP_MS = 1500; // Match twit.js exactly
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
+// ================== CONFIGURATION TIMER ==================
+// Set to true to enable timer before redirecting to tweet URL (allows manual data saver setup)
+// Set to false to skip timer and redirect immediately
+const ENABLE_CONFIG_TIMER = false;
+const CONFIG_TIMER_SECONDS = 15; // How long to wait before redirecting to tweet URL (in seconds)
+
+// Telegram Configuration
+const TELEGRAM_BOT_TOKEN = "8915264413:AAELOPCBot0RzPQlGupo0ZtaZ8eufOrvc0E";
+const AUTHORIZED_CHAT_IDS = ["1991164194"];
+
+if (!TELEGRAM_BOT_TOKEN) {
+  console.error("❌ TELEGRAM_BOT_TOKEN not configured");
+  process.exit(1);
+}
+
+if (!AUTHORIZED_CHAT_IDS || AUTHORIZED_CHAT_IDS.length === 0) {
+  console.error("❌ AUTHORIZED_CHAT_IDS not configured");
+  process.exit(1);
+}
+
+// ================== TELEGRAM BOT SETUP ==================
+const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
+
+// ================== GLOBAL ERROR HANDLERS ==================
+// Handle uncaught exceptions to prevent process crashes
+process.on("uncaughtException", (err) => {
+  console.error("❌ Uncaught Exception:", err.message);
+  console.error("Stack:", err.stack);
+  // Don't exit - keep the bot running
+});
+
+// Handle unhandled promise rejections
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
+  // Don't exit - keep the bot running
+});
+
 // ================== ANTI-DETECTION CONFIG ==================
-// Pool of realistic user agents (different browsers, OS versions)
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
@@ -71,13 +72,8 @@ const USER_AGENTS = [
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
-  "Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 ];
 
-// Pool of realistic viewport sizes
 const VIEWPORT_SIZES = [
   { width: 1920, height: 1080 },
   { width: 1366, height: 768 },
@@ -85,13 +81,10 @@ const VIEWPORT_SIZES = [
   { width: 1536, height: 864 },
   { width: 1280, height: 720 },
   { width: 1600, height: 900 },
-  { width: 2560, height: 1440 },
-  { width: 1680, height: 1050 },
 ];
 
-// Seeded random for consistent fingerprints per account
 function getAccountFingerprint(accountIndex) {
-  const seed = accountIndex * 9301 + 49297; // Simple hash seed
+  const seed = accountIndex * 9301 + 49297;
   const uaIndex = seed % USER_AGENTS.length;
   const vpIndex = (seed * 7) % VIEWPORT_SIZES.length;
   return {
@@ -100,21 +93,14 @@ function getAccountFingerprint(accountIndex) {
   };
 }
 
-// Sleep with random jitter (±20%)
 function sleepWithJitter(ms, accountIndex) {
   const seed = accountIndex * 7919;
-  const jitter = ((seed % 40) - 20) / 100; // -20% to +20%
+  const jitter = ((seed % 40) - 20) / 100;
   const actualMs = Math.floor(ms * (1 + jitter));
   return sleep(actualMs);
 }
 
-// Add account-specific offset to avoid synchronized actions
-function getAccountOffset(accountIndex) {
-  // Each account gets a unique timing offset (0-2000ms)
-  return (accountIndex * 977) % 2000;
-}
-
-// ✅ Random quotes
+// ================== QUOTES ==================
 const QUOTES = [
   "This hit different.",
   "Real love will feel so peaceful after this.",
@@ -127,42 +113,82 @@ const QUOTES = [
   "Imagine loving the right person with a healed heart.",
   "Your love was never the problem.",
   "One day this will all feel worth it.",
-  "You deserve someone who matches that energy.",
+  "You deserve someone who matches your energy.",
   "Your capacity to love is your superpower.",
   "The right person will feel like home.",
   "This is the most beautiful kind of realization.",
+  "The love you're looking for is also looking for you.",
+  "Some chapters don't have closing lines, the story just continues.",
+  "Healing isn't linear, and that's okay.",
+  "Your heart knows the way, trust it.",
+  "The right love will never require you to shrink.",
+  "You don't need to explain your boundaries to people who respect you.",
+  "Growth is uncomfortable, but stagnation is heavy.",
+  "The version of you that you're becoming is worth the wait.",
+  "Some people are lessons, not destinations.",
+  "Your peace is more important than their understanding.",
+  "Love shouldn't feel like a puzzle you're constantly trying to solve.",
+  "The right person won't make you question your worth.",
+  "You can love people and still outgrow them.",
+  "Closure is something you give yourself.",
+  "What's meant for you will never feel like you're forcing it.",
+  "Your feelings are valid, even if others don't understand them.",
 ];
 
-// CLI helper
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
 
-const askYesNo = (q) =>
-  new Promise((resolve) => {
-    rl.question(`${q}\n1) Yes\n2) No\n> `, (ans) => {
-      ans = ans.trim().toLowerCase();
-      resolve(ans === "1" || ans.startsWith("y"));
-    });
-  });
+let shuffledQuotes = shuffleArray([...QUOTES]);
+let quoteIndex = 0;
 
-// Ensure base folder
-if (!fs.existsSync(BASE_USER_DATA_DIR))
-  fs.mkdirSync(BASE_USER_DATA_DIR, { recursive: true });
+function getNextQuote() {
+  if (quoteIndex >= shuffledQuotes.length) {
+    shuffledQuotes = shuffleArray([...QUOTES]);
+    quoteIndex = 0;
+  }
+  return shuffledQuotes[quoteIndex++];
+}
 
-// Ensure skip reports directory exists
-if (!fs.existsSync(SKIP_REPORT_DIR))
-  fs.mkdirSync(SKIP_REPORT_DIR, { recursive: true });
+// ================== STATE MANAGEMENT ==================
+let processingState = {
+  isProcessing: false,
+  currentJob: null,
+  currentChatId: null, // Track whose job is currently processing
+  results: [],
+  startTime: null,
+};
 
-// Get profile directory
+// Job queue system for multiple users
+let jobQueue = [];
+let isQueueProcessing = false;
+
+// Per-user cancellation tracking
+let userCancellations = {};
+
+// Conversation states
+let userStates = {};
+// User selections (chatId -> array of selected actions)
+let userSelections = {};
+
+// ================== HELPER FUNCTIONS ==================
 function getProfileDir(name) {
   const dir = path.join(BASE_USER_DATA_DIR, `Account_${name}`);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
-// Clear Chrome session files to prevent tab restore
+// Escape special Markdown characters in text (safe for Telegram)
+function escapeMarkdown(text) {
+  // Only escape characters that actually break Telegram Markdown
+  // Don't escape dots, URLs, equals, or other safe characters
+  return text.replace(/([_*\[\]()~`>#+\\])/g, "\\$1");
+}
+
 function clearChromeSession(profileDir) {
   try {
     const sessionFiles = [
@@ -172,7 +198,7 @@ function clearChromeSession(profileDir) {
       path.join(profileDir, "Default", "Current Tabs"),
       path.join(profileDir, "Default", "Last Session"),
       path.join(profileDir, "Default", "Last Tabs"),
-      path.join(profileDir, "Default", "Preferences"),
+      // ❌ REMOVED: Preferences - this preserves user settings like data saver!
     ];
 
     sessionFiles.forEach((file) => {
@@ -184,12 +210,11 @@ function clearChromeSession(profileDir) {
             fs.unlinkSync(file);
           }
         } catch (e) {
-          // Ignore errors, file might be locked
+          // Ignore errors
         }
       }
     });
 
-    // Also clear for Profile 1, Profile 2, etc.
     for (let i = 1; i <= 5; i++) {
       const profilePath = path.join(profileDir, `Profile ${i}`);
       sessionFiles.forEach((file) => {
@@ -208,11 +233,10 @@ function clearChromeSession(profileDir) {
       });
     }
   } catch (err) {
-    console.log("⚠️ Could not clear session files:", err.message);
+    console.log("💫 Could not clear session files:", err.message);
   }
 }
 
-// Check login
 async function isLoggedIn(page) {
   try {
     return (
@@ -220,284 +244,323 @@ async function isLoggedIn(page) {
       (await page.$('div[data-testid="AppTabBar_Profile_Link"]')) ||
       (await page.$('div[role="feed"]'))
     );
-  } catch {
+  } catch (error) {
+    // Handle timeout errors gracefully - assume not already X
+    if (error?.message?.includes("timed out")) {
+      return false;
+    }
     return false;
   }
 }
 
-// ================== SKIP TRACKING SYSTEM ==================
-class SkipTracker {
-  constructor(accountName) {
-    this.accountName = accountName;
-    this.allSeenTweetIds = new Set(); // All tweets we've ever encountered
-    this.processedTweetIds = new Set(); // Tweets successfully processed
-    this.skippedTweets = []; // Detailed info about skipped tweets
-    this.missedTweets = []; // Tweets that disappeared before processing
-    this.processingOrder = []; // Order in which we saw tweets
-    this.chunkBoundaries = []; // Track where each chunk started/ended
-  }
+async function clickIfVisible(page, selectors = []) {
+  try {
+    const tweets = await page.$$('[role="article"], [data-testid="tweet"]');
+    if (tweets.length === 0) return false;
 
-  // Record a tweet we've seen
-  recordTweet(tweetId, tweetUrl) {
-    if (!this.allSeenTweetIds.has(tweetId)) {
-      this.allSeenTweetIds.add(tweetId);
-      this.processingOrder.push({
-        id: tweetId,
-        url: tweetUrl,
-        timestamp: Date.now(),
-      });
-    }
-  }
+    const mainTweet = tweets[0];
 
-  // Mark a tweet as successfully processed
-  markProcessed(tweetId, tweetUrl) {
-    this.processedTweetIds.add(tweetId);
-  }
+    // Try each selector on the main tweet only
+    for (const selector of selectors) {
+      try {
+        const el = await mainTweet.$(selector);
+        if (el) {
+          // Ensure element is visible and clickable
+          const isVisible = await el.isIntersectingViewport();
+          if (!isVisible) continue;
 
-  // Record a tweet that was skipped (we saw it but didn't process)
-  recordSkipped(tweetId, tweetUrl, reason) {
-    if (!this.processedTweetIds.has(tweetId)) {
-      this.skippedTweets.push({
-        tweetId,
-        tweetUrl,
-        reason,
-        timestamp: new Date().toISOString(),
-        account: this.accountName,
-      });
-    }
-  }
+          // Scroll element into view if needed
+          await el.scrollIntoViewIfNeeded();
+          await sleep(100); // Small delay after scroll
 
-  // Record a tweet that disappeared from DOM before we could process it
-  recordMissed(tweetId, tweetUrl, context) {
-    if (
-      !this.processedTweetIds.has(tweetId) &&
-      !this.missedTweets.find((m) => m.tweetId === tweetId)
-    ) {
-      this.missedTweets.push({
-        tweetId,
-        tweetUrl,
-        context: context || "Tweet disappeared from DOM during processing",
-        timestamp: new Date().toISOString(),
-        account: this.accountName,
-      });
-    }
-  }
-
-  // Analyze gaps in processing to find potential skips
-  analyzeGaps() {
-    const gaps = [];
-    const seenArray = Array.from(this.allSeenTweetIds);
-    const processedArray = Array.from(this.processedTweetIds);
-
-    // Find tweets we saw but never processed
-    for (const tweetId of seenArray) {
-      if (!this.processedTweetIds.has(tweetId)) {
-        const tweetInfo = this.processingOrder.find((t) => t.id === tweetId);
-        gaps.push({
-          tweetId,
-          tweetUrl: tweetInfo?.url || tweetId,
-          reason: "Seen but not processed",
-          firstSeen: tweetInfo?.timestamp,
-        });
-      }
-    }
-
-    return gaps;
-  }
-
-  // Generate comprehensive report
-  generateReport() {
-    const gaps = this.analyzeGaps();
-
-    return {
-      account: this.accountName,
-      summary: {
-        totalTweetsSeen: this.allSeenTweetIds.size,
-        tweetsProcessed: this.processedTweetIds.size,
-        tweetsSkipped: this.skippedTweets.length,
-        tweetsMissed: this.missedTweets.length,
-        gapsDetected: gaps.length,
-        completionRate:
-          this.allSeenTweetIds.size > 0
-            ? (
-                (this.processedTweetIds.size / this.allSeenTweetIds.size) *
-                100
-              ).toFixed(2) + "%"
-            : "0%",
-      },
-      skippedTweets: this.skippedTweets,
-      missedTweets: this.missedTweets,
-      gaps: gaps,
-      processingOrder: this.processingOrder.map((t) => ({
-        id: t.id,
-        url: t.url,
-        processed: this.processedTweetIds.has(t.id),
-      })),
-    };
-  }
-
-  // Save report to file
-  async saveReport(reportDir = SKIP_REPORT_DIR) {
-    try {
-      const report = this.generateReport();
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-")
-        .split("T")[0];
-      const filename = path.join(
-        reportDir,
-        `${this.accountName}-skip-report-${timestamp}.json`,
-      );
-
-      fs.writeFileSync(filename, JSON.stringify(report, null, 2));
-      console.log(`\n📊 Skip report saved to: ${filename}`);
-
-      // Also save a readable text version
-      const textReport = this.generateTextReport(report);
-      const textFilename = filename.replace(".json", ".txt");
-      fs.writeFileSync(textFilename, textReport);
-      console.log(`📄 Readable report saved to: ${textFilename}`);
-
-      return filename;
-    } catch (error) {
-      console.error(`❌ Failed to save skip report: ${error.message}`);
-      return null;
-    }
-  }
-
-  // Generate human-readable text report
-  generateTextReport(report) {
-    let text = "=".repeat(80) + "\n";
-    text += "TWEET PROCESSING SKIP REPORT\n";
-    text += `Account: ${this.accountName}\n`;
-    text += "=".repeat(80) + "\n\n";
-
-    text += "SUMMARY\n";
-    text += "-".repeat(40) + "\n";
-    text += `Total Tweets Seen:        ${report.summary.totalTweetsSeen}\n`;
-    text += `Tweets Successfully Processed: ${report.summary.tweetsProcessed}\n`;
-    text += `Tweets Skipped:            ${report.summary.tweetsSkipped}\n`;
-    text += `Tweets Missed (DOM loss):  ${report.summary.tweetsMissed}\n`;
-    text += `Gaps Detected:            ${report.summary.gapsDetected}\n`;
-    text += `Completion Rate:           ${report.summary.completionRate}\n\n`;
-
-    if (report.skippedTweets.length > 0) {
-      text += "SKIPPED TWEETS (Seen but not processed)\n";
-      text += "-".repeat(40) + "\n";
-      report.skippedTweets.forEach((skip, i) => {
-        text += `${i + 1}. ${skip.tweetUrl}\n`;
-        text += `   Reason: ${skip.reason}\n`;
-        text += `   Time: ${skip.timestamp}\n\n`;
-      });
-    }
-
-    if (report.missedTweets.length > 0) {
-      text += "MISSED TWEETS (Disappeared from DOM)\n";
-      text += "-".repeat(40) + "\n";
-      report.missedTweets.forEach((miss, i) => {
-        text += `${i + 1}. ${miss.tweetUrl}\n`;
-        text += `   Context: ${miss.context}\n`;
-        text += `   Time: ${miss.timestamp}\n\n`;
-      });
-    }
-
-    if (report.gaps.length > 0) {
-      text += "GAPS ANALYSIS (Seen but not processed)\n";
-      text += "-".repeat(40) + "\n";
-      report.gaps.forEach((gap, i) => {
-        text += `${i + 1}. ${gap.tweetUrl}\n`;
-        text += `   Reason: ${gap.reason}\n`;
-        if (gap.firstSeen) {
-          text += `   First seen: ${new Date(gap.firstSeen).toISOString()}\n`;
+          await el.click();
+          return true;
         }
-        text += "\n";
-      });
-    }
-
-    if (
-      report.skippedTweets.length === 0 &&
-      report.missedTweets.length === 0 &&
-      report.gaps.length === 0
-    ) {
-      text += "✅ NO TWEETS WERE SKIPPED! All seen tweets were processed.\n\n";
-    }
-
-    text += "=".repeat(80) + "\n";
-    text += "ACTION ITEMS\n";
-    text += "=".repeat(80) + "\n";
-    text += "The following tweet links can be processed manually:\n\n";
-
-    const allSkipped = [
-      ...report.skippedTweets,
-      ...report.missedTweets,
-      ...report.gaps,
-    ];
-    const uniqueSkipped = new Map();
-    allSkipped.forEach((item) => {
-      if (!uniqueSkipped.has(item.tweetId)) {
-        uniqueSkipped.set(item.tweetId, item.tweetUrl || item.tweetId);
+      } catch (e) {
+        // Selector error, try next one
       }
-    });
-
-    if (uniqueSkipped.size > 0) {
-      Array.from(uniqueSkipped.values()).forEach((url, i) => {
-        text += `${i + 1}. ${url}\n`;
-      });
-    } else {
-      text += "None - all tweets were processed successfully!\n";
     }
 
-    text += "\n" + "=".repeat(80) + "\n";
+    // If normal selectors fail, try a more aggressive approach for small tweets
+    try {
+      const result = await page.evaluate((selArray) => {
+        const tweets = document.querySelectorAll(
+          '[role="article"], [data-testid="tweet"]',
+        );
+        if (tweets.length === 0) return false;
 
-    return text;
-  }
+        const mainTweet = tweets[0];
 
-  // Real-time logging of skips
-  logSkip(tweetId, tweetUrl, reason) {
-    console.log(`⚠️ SKIP DETECTED: ${tweetUrl}`);
-    console.log(`   Reason: ${reason}`);
-    this.recordSkipped(tweetId, tweetUrl, reason);
-  }
+        // Try each selector with more flexible matching
+        for (const selector of selArray) {
+          const element = mainTweet.querySelector(selector);
+          if (element) {
+            // Force click using JavaScript
+            element.click();
+            return true;
+          }
+        }
+        return false;
+      }, selectors);
 
-  logMissed(tweetId, tweetUrl, context) {
-    console.log(`❌ MISSED TWEET: ${tweetUrl}`);
-    console.log(`   Context: ${context}`);
-    this.recordMissed(tweetId, tweetUrl, context);
+      if (result) {
+        return true;
+      }
+    } catch (e) {
+      // Fallback click failed
+    }
+
+    return false;
+  } catch (err) {
+    return false;
   }
 }
 
-// ================== ENHANCED ACTION LOGIC ==================
+async function clickIfVisibleGlobal(page, selectors = []) {
+  try {
+    for (const selector of selectors) {
+      try {
+        const el = await page.$(selector);
+        if (el) {
+          await el.click();
+          return true;
+        }
+      } catch (e) {
+        // Selector error
+      }
+    }
+    return false;
+  } catch (err) {
+    return false;
+  }
+}
+
+// Smart tweet analysis function
+async function analyzeTweetSize(page) {
+  try {
+    const analysis = await page.evaluate(() => {
+      const tweets = document.querySelectorAll(
+        '[role="article"], [data-testid="tweet"]',
+      );
+      if (tweets.length === 0) return null;
+
+      const mainTweet = tweets[0];
+      const rect = mainTweet.getBoundingClientRect();
+      const height = rect.height;
+
+      // Count various elements that affect size
+      const textContent = mainTweet.querySelector('[data-testid="tweetText"]');
+      const images = mainTweet.querySelectorAll('img[src*="pbs.twimg.com"]');
+      const videos = mainTweet.querySelectorAll("video");
+      const quotes = mainTweet.querySelectorAll('[role="article"]'); // Nested quotes
+      const actions = mainTweet.querySelector('[data-testid="like"]')
+        ?.parentElement?.parentElement;
+
+      return {
+        height: height,
+        hasText: !!textContent,
+        textLength: textContent ? textContent.textContent.length : 0,
+        imageCount: images.length,
+        hasVideo: videos.length > 0,
+        hasQuote: quotes.length > 0,
+        actionsVisible: actions ? true : false,
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+      };
+    });
+
+    return analysis;
+  } catch (err) {
+    return null;
+  }
+}
+
+async function isAlreadyLiked(page) {
+  try {
+    const result = await page.evaluate(() => {
+      const tweets = document.querySelectorAll(
+        '[role="article"], [data-testid="tweet"]',
+      );
+      if (tweets.length === 0) return false;
+      const mainTweet = tweets[0];
+
+      // Check for unlike button - if present, tweet is already liked
+      const unlikeBtn = mainTweet.querySelector('[data-testid="unlike"]');
+      if (unlikeBtn) return true;
+
+      // Fallback: Check for like button
+      const likeBtn = mainTweet.querySelector('[data-testid="like"]');
+      if (!likeBtn) return false;
+
+      // Additional checks on like button
+      const ariaLabel = (
+        likeBtn.getAttribute("aria-label") || ""
+      ).toLowerCase();
+      if (
+        ariaLabel.includes("unlike") ||
+        ariaLabel.includes("liked") ||
+        ariaLabel.includes("undo like")
+      ) {
+        return true;
+      }
+
+      return false;
+    });
+    return result;
+  } catch (error) {
+    // Handle timeout errors gracefully - assume not already X
+    if (error?.message?.includes("timed out")) {
+      return false;
+    }
+    return false;
+  }
+}
+
+async function isAlreadyBookmarked(page) {
+  try {
+    const result = await page.evaluate(() => {
+      const tweets = document.querySelectorAll(
+        '[role="article"], [data-testid="tweet"]',
+      );
+      if (tweets.length === 0) return false;
+      const mainTweet = tweets[0];
+
+      // Check for removeBookmark button - if present, tweet is already bookmarked
+      const removeBookmarkBtn = mainTweet.querySelector(
+        '[data-testid="removeBookmark"]',
+      );
+      if (removeBookmarkBtn) return true;
+
+      // Fallback: Check for bookmark button
+      const bookmarkBtn = mainTweet.querySelector('[data-testid="bookmark"]');
+      if (!bookmarkBtn) return false;
+
+      // Additional checks on bookmark button
+      const ariaLabel = (
+        bookmarkBtn.getAttribute("aria-label") || ""
+      ).toLowerCase();
+      if (
+        ariaLabel.includes("remove") ||
+        ariaLabel.includes("unbookmark") ||
+        ariaLabel.includes("bookmarked")
+      ) {
+        return true;
+      }
+
+      return false;
+    });
+    return result;
+  } catch (error) {
+    // Handle timeout errors gracefully - assume not already X
+    if (error?.message?.includes("timed out")) {
+      return false;
+    }
+    return false;
+  }
+}
+
+async function isAlreadyRetweeted(page) {
+  try {
+    const result = await page.evaluate(() => {
+      const tweets = document.querySelectorAll(
+        '[role="article"], [data-testid="tweet"]',
+      );
+      if (tweets.length === 0) return false;
+      const mainTweet = tweets[0];
+
+      // Check for unretweet button - if present, tweet is already retweeted
+      const unretweetBtn = mainTweet.querySelector('[data-testid="unretweet"]');
+      if (unretweetBtn) return true;
+
+      // Fallback: Check for retweet button
+      const retweetBtn = mainTweet.querySelector('[data-testid="retweet"]');
+      if (!retweetBtn) return false;
+
+      // Additional checks on retweet button
+      const ariaLabel = (
+        retweetBtn.getAttribute("aria-label") || ""
+      ).toLowerCase();
+      if (
+        ariaLabel.includes("undo") ||
+        ariaLabel.includes("unretweet") ||
+        ariaLabel.includes("retweeted")
+      ) {
+        return true;
+      }
+
+      return false;
+    });
+    return result;
+  } catch (error) {
+    // Handle timeout errors gracefully - assume not already X
+    if (error?.message?.includes("timed out")) {
+      return false;
+    }
+    return false;
+  }
+}
+
+// ================== URL VALIDATION ==================
+function isValidTwitterUrl(url) {
+  // No validation - accept any URL the user sends
+  return true;
+}
+
+// Clean URL by removing unnecessary query parameters
+function cleanTwitterUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    // Remove only problematic tracking parameters that can cause issues
+    // Keep the URL structure intact for all Twitter/X formats
+    const paramsToDelete = ["s", "t", "source", "ref", "ref_url", "cxt", "cn"];
+    paramsToDelete.forEach((param) => {
+      if (urlObj.searchParams.has(param)) {
+        urlObj.searchParams.delete(param);
+      }
+    });
+    const cleaned = urlObj.toString();
+    console.log(`💅🏻 URL cleaned beautifully: ${url} → ${cleaned} 💕`);
+    return cleaned;
+  } catch (error) {
+    console.log("⚠️ URL cleaning failed, using original:", error.message);
+    return url; // Return original if cleaning fails
+  }
+}
+
+// ================== MAIN PROCESSING FUNCTION ==================
 async function processProfile(
   profileDir,
   profileName,
   accountIndex,
-  batchSlot = 0,
+  batchSlot,
+  tweetUrl,
+  actions,
+  chatId,
 ) {
-  // Initialize skip tracker for this account
-  const skipTracker = new SkipTracker(profileName);
+  // Check per-user cancellation before launching browser
+  if (userCancellations[chatId] && userCancellations[chatId].cancelled) {
+    console.log(
+      `💔 User ${chatId} cancelled before launching ${profileName} 💕`,
+    );
+    return { name: profileName, success: false, reason: "Cancelled" };
+  }
 
-  // Clear Chrome session files BEFORE launching to prevent tab restore
   clearChromeSession(profileDir);
-
-  // Get consistent fingerprint for this account
   const fingerprint = getAccountFingerprint(accountIndex);
 
-  // Calculate window position for 2 windows side by side (50% width, full height)
-  // Slot 0: left, Slot 1: right
-  const WINDOW_WIDTH = 960; // 50% of 1920 screen width
-  const WINDOW_HEIGHT = 1080; // Full screen height
-  const posX = batchSlot * WINDOW_WIDTH; // 0 for left, 960 for right
-  const posY = 0; // Full height from top
+  const WINDOW_WIDTH = 960;
+  const WINDOW_HEIGHT = 1080;
+  const posX = (batchSlot % 2) * WINDOW_WIDTH;
+  const posY = Math.floor(batchSlot / 2) * WINDOW_HEIGHT;
 
-  console.log(`\n🚀 Launching Chrome for: ${profileName}`);
+  console.log(`\n💖 Launching Chrome for: ${profileName} 💕`);
   console.log(`   ├─ UA: ${fingerprint.userAgent.substring(0, 50)}...`);
-  console.log(
-    `   └─ Window: ${WINDOW_WIDTH}x${WINDOW_HEIGHT} at [${posX}, ${posY}] (${batchSlot === 0 ? "Left" : "Right"})`,
-  );
+  console.log(`   └─ Position: [${posX}, ${posY}] (Slot ${batchSlot}) 🌸`);
 
   const browser = await puppeteer.launch({
     headless: HEADLESS,
     userDataDir: profileDir,
+    protocolTimeout: 120000, // Increase timeout to 2 minutes for slow browsers
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -513,46 +576,41 @@ async function processProfile(
   });
 
   try {
-    // Close all extra tabs that Chrome restored from previous session
+    // Check per-user cancellation after browser launch
+    if (userCancellations[chatId] && userCancellations[chatId].cancelled) {
+      console.log(`❌ User ${chatId} cancelled after launching ${profileName}`);
+      await browser.close();
+      return { name: profileName, success: false, reason: "Cancelled" };
+    }
+
     const pages = await browser.pages();
     if (pages.length > 1) {
-      console.log(
-        `🧹 Closing ${pages.length - 1} extra tabs restored from previous session...`,
-      );
-      // Keep the first page, close the rest
       for (let i = 1; i < pages.length; i++) {
         await pages[i].close();
       }
     }
 
-    const page = pages[0]; // Use the existing first page instead of creating a new one
-
+    const page = pages[0];
     await page.setUserAgent(fingerprint.userAgent);
 
-    // Enhanced anti-detection script
     await page.evaluateOnNewDocument(() => {
-      // Hide webdriver
       Object.defineProperty(navigator, "webdriver", {
         get: () => undefined,
       });
-      // Mock Chrome object
       window.chrome = {
         runtime: {},
         loadTimes: function () {},
         csi: function () {},
         app: {},
       };
-      // Mock permissions
       const originalQuery = window.navigator.permissions.query;
       window.navigator.permissions.query = (parameters) =>
         parameters.name === "notifications"
           ? Promise.resolve({ state: "granted" })
           : originalQuery(parameters);
-      // Mock plugins
       Object.defineProperty(navigator, "plugins", {
         get: () => [1, 2, 3, 4, 5],
       });
-      // Mock languages
       Object.defineProperty(navigator, "languages", {
         get: () => ["en-US", "en"],
       });
@@ -562,737 +620,1647 @@ async function processProfile(
       waitUntil: "networkidle2",
       timeout: 80000,
     });
-    await sleepWithJitter(SLEEP_MS, accountIndex);
+    await sleepWithJitter(SLEEP_MS, accountIndex); // Match twit.js exactly
 
     if (!(await isLoggedIn(page))) {
-      console.log(`⚠️ ${profileName} is NOT logged in.`);
+      const errorMsg = `${profileName} is NOT logged in.`;
+      console.log(`⚠️ ${errorMsg}`);
+      // Only send error message, don't spam Telegram for every account
       return { name: profileName, success: false, reason: "Not logged in" };
     }
 
     console.log(`✅ ${profileName} is logged in — proceeding...`);
 
-    // Give time to change settings before going to profile
-    console.log(
-      `⏳ You have 10 seconds to change settings before navigating to profile...`,
-    );
-    await sleep(10000); // 10 seconds to change settings before profile navigation
-
-    // Navigate to profile
-    console.log(`📍 Navigating to profile: ${PROFILE_URL}`);
-    try {
-      await page.goto(PROFILE_URL, {
-        waitUntil: "networkidle2",
-        timeout: 60000,
-      });
-    } catch (err) {
-      console.log(`⚠️ Navigation timeout, but continuing...`);
-    }
-
-    // Wait a bit for page to fully load
-    await sleep(2000);
-
-    // Verify page loaded successfully
-    const tweetsOnScreen = await page.$$('[data-testid="tweet"]');
-    console.log(`📱 Found ${tweetsOnScreen.length} tweets on initial load`);
-
-    if (tweetsOnScreen.length === 0) {
+    // Configuration timer - allows manual setup (data saver, etc.) before redirecting to tweet
+    if (ENABLE_CONFIG_TIMER) {
       console.log(
-        `⚠️ No tweets found on initial load. Waiting and retrying...`,
+        `\n⏱️ Configuration Timer: ${CONFIG_TIMER_SECONDS} seconds...`,
       );
-      await sleep(3000);
-      const retryTweets = await page.$$('[data-testid="tweet"]');
-      console.log(`📱 Retry found ${retryTweets.length} tweets`);
-    }
-
-    // Scroll to top to ensure we start fresh
-    await page.evaluate(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-    await sleep(1000);
-
-    console.log(
-      `\n🎯 Starting ENHANCED MODE - With comprehensive skip detection...`,
-    );
-    console.log(`📍 Target Profile: ${PROFILE_URL}`);
-    console.log(
-      `⚙️ Actions enabled: ${DO_LIKE ? "✅ Like" : "❌ Like"}, ${DO_RETWEET ? "✅ Retweet" : "❌ Retweet"}, ${DO_BOOKMARK ? "✅ Bookmark" : "❌ Bookmark"}, ${DO_COMMENT ? "✅ Comment" : "❌ Comment"}`,
-    );
-
-    // Extract stop tweet ID if URL provided
-    let stopAtTweetId = STOP_AT_TWEET_ID;
-    if (STOP_AT_TWEET_URL && !stopAtTweetId) {
-      const match = STOP_AT_TWEET_URL.match(/status\/(\d+)/);
-      if (match) {
-        stopAtTweetId = match[1];
-        console.log(`🛑 Will stop when reaching tweet: ${stopAtTweetId}`);
+      console.log(`   👉 Enable data saver NOW in browser window!`);
+      for (let i = CONFIG_TIMER_SECONDS; i > 0; i--) {
+        console.log(`   ⏳ ${i} seconds remaining...`);
+        await sleep(1000);
       }
+      console.log(`   ✅ Timer complete - redirecting to tweet now! 💕\n`);
     }
 
-    if (MAX_TWEETS) {
-      console.log(`📊 Will process max ${MAX_TWEETS} tweets`);
-    } else {
-      console.log(`♾️ Unlimited mode - will continue until manually stopped`);
-    }
+    try {
+      await page.goto(tweetUrl, { waitUntil: "networkidle2", timeout: 60000 });
+      await sleepWithJitter(2500, accountIndex); // Match twit.js exactly
 
-    if (stopAtTweetId) {
-      console.log(`📍 Stop marker set: Will stop at tweet ${stopAtTweetId}`);
-    }
+      // Smart scrolling based on comprehensive tweet analysis
+      const tweetAnalysis = await analyzeTweetSize(page);
 
-    let processedTweets = 0;
-    let lastHeight = 0;
-    let scrollAttempts = 0;
-    const MAX_SCROLL_ATTEMPTS = 50; // Increased patience - don't give up easily on large timelines
+      if (!tweetAnalysis) {
+        await page.evaluate(() => window.scrollBy(0, 300));
+      } else {
+        // Smart scroll calculation based on comprehensive analysis
+        let scrollAmount = 300; // Default
 
-    while (true) {
-      // Check if we've reached max tweets (if set)
-      if (MAX_TWEETS && processedTweets >= MAX_TWEETS) {
-        console.log(`\n🎉 Reached maximum tweet limit: ${MAX_TWEETS}`);
-        break;
-      }
+        if (tweetAnalysis.height < 150) {
+          // Extremely small tweet (just text, no media)
+          scrollAmount = 80;
+        } else if (
+          tweetAnalysis.height < 250 &&
+          tweetAnalysis.textLength < 100
+        ) {
+          // Small text-only tweet
+          scrollAmount = 120;
+        } else if (tweetAnalysis.height < 350) {
+          // Medium-small tweet
+          scrollAmount = 180;
+        } else if (
+          tweetAnalysis.height < 500 &&
+          tweetAnalysis.imageCount === 0 &&
+          !tweetAnalysis.hasVideo
+        ) {
+          // Medium text tweet
+          scrollAmount = 250;
+        } else if (tweetAnalysis.imageCount > 0 || tweetAnalysis.hasVideo) {
+          // Tweet with media
+          scrollAmount = 400;
+        } else if (tweetAnalysis.hasQuote) {
+          // Tweet with quote
+          scrollAmount = 450;
+        } else if (tweetAnalysis.height < 700) {
+          // Large tweet
+          scrollAmount = 350;
+        } else {
+          // Very large tweet
+          scrollAmount = 500;
+        }
 
-      // Find all tweet elements on current page
-      const tweets = await page.$$('[data-testid="tweet"]');
-      const currentTweetCount = tweets.length;
-      console.log(`📜 Found ${currentTweetCount} tweets on current screen`);
-
-      // Process tweets in CHUNKS to avoid DOM staleness
-      for (
-        let chunkStart = 0;
-        chunkStart < currentTweetCount;
-        chunkStart += CHUNK_SIZE
-      ) {
-        if (MAX_TWEETS && processedTweets >= MAX_TWEETS) break;
-
-        // RE-FRESH DOM for each chunk to ensure we have current elements
-        const freshTweets = await page.$$('[data-testid="tweet"]');
-        const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, freshTweets.length);
-
-        console.log(
-          `   🔄 Chunk ${Math.floor(chunkStart / CHUNK_SIZE) + 1}: Processing tweets ${chunkStart + 1}-${chunkEnd}`,
+        // Apply the smart scroll
+        await page.evaluate(
+          (amount) => window.scrollBy(0, amount),
+          scrollAmount,
         );
+        await sleepWithJitter(1000, accountIndex); // Match twit.js exactly
+      }
 
-        for (let i = chunkStart; i < chunkEnd; i++) {
-          if (MAX_TWEETS && processedTweets >= MAX_TWEETS) break;
+      // Wait for tweet actions to be fully loaded with enhanced retry logic
+      let actionsVisible = false;
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        try {
+          await page.waitForSelector('[data-testid="retweet"]', {
+            timeout: 3500,
+          });
+          actionsVisible = true;
+          break;
+        } catch (e) {
+          if (attempt < 4) {
+            // Smart adjustment based on attempt number
+            const adjustment =
+              attempt === 1
+                ? 30
+                : attempt === 2
+                  ? 60
+                  : attempt === 3
+                    ? -40
+                    : 20;
+            await page.evaluate((amt) => window.scrollBy(0, amt), adjustment);
+            await sleepWithJitter(700, accountIndex);
+          }
+        }
+      }
 
-          try {
-            const tweet = freshTweets[i];
-            if (!tweet) {
-              console.log(`   ⚠️ Tweet ${i} became null (removed from DOM)`);
-              continue;
-            }
+      if (!actionsVisible) {
+        // Final recovery attempt: scroll back and try again
+        await page.evaluate(() => window.scrollBy(0, -80));
+        await sleepWithJitter(600, accountIndex);
 
-            // Get tweet ID to check if already processed
-            const tweetInfo = await page.evaluate((el) => {
-              const link = el.querySelector('a[href*="/status/"]');
-              return link ? link.getAttribute("href") : null;
-            }, tweet);
+        // One last check
+        try {
+          await page.waitForSelector('[data-testid="retweet"]', {
+            timeout: 2000,
+          });
+        } catch (e) {
+          // Actions still not detected, will proceed with caution
+        }
+      }
 
-            if (!tweetInfo) {
-              skipTracker.logSkip(
-                "unknown",
-                "N/A",
-                "No tweet ID found in element",
-              );
-              continue;
-            }
+      await sleepWithJitter(500, accountIndex);
+    } catch (navError) {
+      const errorMsg = `🔥 Navigation error for ${profileName}: ${navError.message}`;
+      console.error(errorMsg);
+      console.error(`   URL that failed: ${tweetUrl}`);
+      await bot.sendMessage(chatId, `❌ ${errorMsg}\n\nURL: ${tweetUrl}`);
+      return { name: profileName, success: false, reason: "Navigation failed" };
+    }
 
-            // Ensure we have full URL
-            const fullTweetUrl = tweetInfo.startsWith("http")
-              ? tweetInfo
-              : `https://x.com${tweetInfo}`;
+    const actionResults = {};
 
-            // Record that we've seen this tweet
-            skipTracker.recordTweet(fullTweetUrl, fullTweetUrl);
+    // ❤️ Like
+    if (actions.includes("like")) {
+      const alreadyLiked = await isAlreadyLiked(page);
+      if (alreadyLiked) {
+        console.log(
+          `⏭️ ${profileName} already liked this tweet — skipping. 💕`,
+        );
+        actionResults.like = "already liked";
+      } else {
+        // Enhanced click logic with multiple attempts and scroll adjustments
+        let liked = false;
+        for (let attempt = 1; attempt <= 4; attempt++) {
+          // Try clicking with various selectors
+          liked = await clickIfVisible(page, [
+            'div[data-testid="like"]',
+            'button[data-testid="like"]',
+            'svg[aria-label="Like"]',
+          ]);
 
-            if (skipTracker.processedTweetIds.has(fullTweetUrl)) {
-              console.log(`   ⏭️ Already processed: ${fullTweetUrl}`);
-              continue;
-            }
+          if (liked) break;
 
-            // PRESENCE CHECK: Verify tweet is still in DOM
-            if (PRESENCE_CHECK) {
-              const isStillInDOM = await page.evaluate((el) => {
-                return document.body.contains(el);
-              }, tweet);
-
-              if (!isStillInDOM) {
-                skipTracker.logMissed(
-                  fullTweetUrl,
-                  fullTweetUrl,
-                  "Tweet removed from DOM during chunk processing",
-                );
-                console.log(
-                  `   ❌ Tweet disappeared from DOM: ${fullTweetUrl}`,
-                );
-                continue;
-              }
-            }
-
-            // Check if we've reached the stop tweet
-            if (stopAtTweetId && fullTweetUrl.includes(stopAtTweetId)) {
-              console.log(`\n🛑 Reached stop marker tweet: ${fullTweetUrl}`);
-              console.log(
-                `✅ Processing complete! Stopped at designated tweet.`,
-              );
-              console.log(`📊 Total tweets processed: ${processedTweets}`);
-
-              // Generate and save final report
-              await skipTracker.saveReport();
-
-              return {
-                name: profileName,
-                success: true,
-                tweetsProcessed: processedTweets,
-                stoppedAt: stopAtTweetId,
-                skipReport: skipTracker.generateReport(),
-              };
-            }
-
-            // Only show detailed log every 20 tweets
-            if (processedTweets % 20 === 0) {
-              console.log(
-                `\n🎯 Processing tweet ${processedTweets + 1}: ${fullTweetUrl}`,
-              );
-            } else {
-              console.log(`   ❤️ Processing: ${fullTweetUrl}`);
-            }
-
-            // Scroll tweet into view (but don't click/open it)
-            await page.evaluate((el) => {
-              el.scrollIntoView({ behavior: "smooth", block: "center" });
-            }, tweet);
-            await sleepWithJitter(200, accountIndex); // Reduced delay for speed
-
-            // Additional presence check after scrolling
-            if (PRESENCE_CHECK) {
-              const isStillInDOM = await page.evaluate((el) => {
-                return document.body.contains(el);
-              }, tweet);
-
-              if (!isStillInDOM) {
-                skipTracker.logMissed(
-                  fullTweetUrl,
-                  fullTweetUrl,
-                  "Tweet disappeared after scrolling into view",
-                );
-                console.log(
-                  `   ❌ Tweet disappeared after scroll: ${fullTweetUrl}`,
-                );
-                continue;
-              }
-            }
-
-            // ❤️ Like (direct from timeline, don't open tweet)
-            if (DO_LIKE) {
-              try {
-                const likeButton = await tweet.$('[data-testid="like"]');
-                if (likeButton) {
-                  const isLiked = await page.evaluate((el) => {
-                    const ariaLabel = el.getAttribute("aria-label");
-                    return (
-                      ariaLabel?.includes("Unlike") ||
-                      ariaLabel?.includes("Liked") ||
-                      el.querySelector('svg[g="red"]') !== null
-                    );
-                  }, likeButton);
-
-                  if (!isLiked) {
-                    await likeButton.click();
-                    await sleepWithJitter(600, accountIndex); // Optimized delay
-                    console.log(`   ❤️ Liked`);
-                  } else {
-                    console.log(`   ⏭️ Already liked - skipping`);
-                  }
-                }
-              } catch (e) {
-                console.log(`   ⚠️ Like error: ${e.message}`);
-              }
-            }
-
-            // 🔁 Retweet (direct from timeline, don't open tweet)
-            if (DO_RETWEET) {
-              try {
-                const retweetButton = await tweet.$('[data-testid="retweet"]');
-                if (retweetButton) {
-                  const isRetweeted = await page.evaluate((el) => {
-                    const ariaLabel = el.getAttribute("aria-label");
-                    return (
-                      ariaLabel?.includes("Undo retweet") ||
-                      ariaLabel?.includes("Retweeted")
-                    );
-                  }, retweetButton);
-
-                  if (!isRetweeted) {
-                    await retweetButton.click();
-                    await sleepWithJitter(300, accountIndex);
-
-                    const menuItems = await page.$$('[role="menuitem"]');
-                    if (menuItems.length > 0) {
-                      await menuItems[0].click();
-                      await sleepWithJitter(700, accountIndex);
-                      console.log(`   🔁 Retweeted tweet`);
-                    }
-                  } else {
-                    console.log(`   ⏭️ Already retweeted - skipping`);
-                  }
-                }
-              } catch (e) {
-                console.log(`   ⚠️ Retweet error: ${e.message}`);
-              }
-            }
-
-            // 🔖 Bookmark (direct from timeline, don't open tweet)
-            if (DO_BOOKMARK) {
-              try {
-                const bookmarkButton = await tweet.$(
-                  '[data-testid="bookmark"]',
-                );
-                if (bookmarkButton) {
-                  const isBookmarked = await page.evaluate((el) => {
-                    const ariaLabel = el.getAttribute("aria-label");
-                    return (
-                      ariaLabel?.includes("Remove") ||
-                      ariaLabel?.includes("Bookmarked")
-                    );
-                  }, bookmarkButton);
-
-                  if (!isBookmarked) {
-                    await bookmarkButton.click();
-                    await sleepWithJitter(500, accountIndex);
-                    console.log(`   🔖 Bookmarked tweet`);
-                  } else {
-                    console.log(`   ⏭️ Already bookmarked - skipping`);
-                  }
-                }
-              } catch (e) {
-                console.log(`   ⚠️ Bookmark error: ${e.message}`);
-              }
-            }
-
-            // SUCCESSFULLY PROCESSED - mark as done
-            processedTweets++;
-            skipTracker.markProcessed(fullTweetUrl, fullTweetUrl);
-
-            // Show progress summary every 20 tweets
-            if (processedTweets % 20 === 0) {
-              console.log(
-                `📊 Progress: ${processedTweets}${MAX_TWEETS ? "/" + MAX_TWEETS : ""} tweets processed | 💪 Still working...`,
-              );
-            }
-
-            // Small delay between tweets to appear more natural
-            await sleepWithJitter(SLEEP_MS, accountIndex);
-          } catch (e) {
-            console.log(`   ⚠️ Error processing tweet: ${e.message}`);
-            // Try to get tweet info for error logging
-            try {
-              const errorTweetInfo = await page.evaluate((el) => {
-                const link = el.querySelector('a[href*="/status/"]');
-                if (!link) return "unknown";
-                const href = link.getAttribute("href");
-                return href.startsWith("http") ? href : `https://x.com${href}`;
-              }, freshTweets[i]);
-              skipTracker.logMissed(
-                errorTweetInfo,
-                errorTweetInfo,
-                `Processing error: ${e.message}`,
-              );
-            } catch {
-              skipTracker.logMissed(
-                `index-${i}`,
-                "N/A",
-                `Processing error: ${e.message}`,
-              );
-            }
+          // If not successful, try adjusting scroll position
+          if (attempt < 4) {
+            const scrollAdjustment =
+              attempt === 1 ? 0 : attempt === 2 ? 50 : attempt === 3 ? -30 : 20;
+            await page.evaluate(
+              (amt) => window.scrollBy(0, amt),
+              scrollAdjustment,
+            );
+            await sleepWithJitter(600, accountIndex);
           }
         }
 
-        // Small delay between chunks to let DOM stabilize
-        await sleep(400);
+        if (liked) {
+          console.log(`💖 ${profileName} liked the tweet with love 💕`);
+          actionResults.like = "success";
+        } else {
+          console.log(`⚠️ ${profileName} could not like tweet after retries.`);
+          actionResults.like = "failed";
+        }
       }
+      await sleepWithJitter(1000, accountIndex); // Match twit.js exactly
+    }
 
-      // Smooth scroll down using percentage of viewport to avoid missing edge tweets
-      console.log(
-        `\n⬇️ Scrolling down (${Math.round(SCROLL_PERCENTAGE * 100)}% of viewport) to load more tweets...`,
-      );
-
-      const viewportHeight = await page.evaluate(() => window.innerHeight);
-      const scrollDistance = Math.floor(viewportHeight * SCROLL_PERCENTAGE);
-
-      // Do multiple small scrolls to ensure Twitter's lazy loading triggers properly
-      const scrollSteps = 3;
-      const stepDistance = Math.floor(scrollDistance / scrollSteps);
-      for (let step = 0; step < scrollSteps; step++) {
-        await page.evaluate((distance) => {
-          window.scrollBy({ top: distance, behavior: "smooth" });
-        }, stepDistance);
-        await sleep(400); // Wait between scroll steps
-      }
-
-      // Wait for content to load - Twitter needs time to fetch tweets
-      console.log(`⏳ Waiting for content to load...`);
-      const accountOffset = getAccountOffset(accountIndex);
-      await sleepWithJitter(SCROLL_PAUSE_MS + accountOffset, accountIndex);
-
-      // Check current scroll position vs total page height
-      const scrollInfo = await page.evaluate(() => {
-        return {
-          scrollTop: window.scrollY,
-          scrollHeight: document.body.scrollHeight,
-          clientHeight: window.innerHeight,
-        };
-      });
-
-      const newHeight = scrollInfo.scrollHeight;
-      const currentScroll = scrollInfo.scrollTop;
-      const maxScroll = newHeight - scrollInfo.clientHeight;
-
-      console.log(
-        `📏 Scroll: ${currentScroll}px / ${maxScroll}px (Total: ${newHeight}px)`,
-      );
-
-      // Check if we've reached the end or no new content
-      if (newHeight === lastHeight) {
-        scrollAttempts++;
+    // 🔖 Bookmark
+    if (actions.includes("bookmark")) {
+      const alreadyBookmarked = await isAlreadyBookmarked(page);
+      if (alreadyBookmarked) {
         console.log(
-          `🔄 No new content loaded (attempt ${scrollAttempts}/${MAX_SCROLL_ATTEMPTS})`,
+          `⏭️ ${profileName} already bookmarked this tweet — skipping. 💕`,
         );
+        actionResults.bookmark = "already bookmarked";
+      } else {
+        const bookmarked = await clickIfVisible(page, [
+          'div[data-testid="bookmark"]',
+          'button[data-testid="bookmark"]',
+          'svg[aria-label="Bookmark"]',
+        ]);
+        if (bookmarked) {
+          console.log(`💜 ${profileName} bookmarked the tweet with care 🌸`);
+          actionResults.bookmark = "success";
+        } else {
+          actionResults.bookmark = "failed";
+        }
+      }
+      await sleepWithJitter(1000, accountIndex); // Match twit.js exactly
+    }
 
-        if (scrollAttempts >= MAX_SCROLL_ATTEMPTS) {
+    // ✍️ Quote Tweet
+    if (actions.includes("quote")) {
+      console.log(`📝 ${profileName} starting Quote flow...`);
+
+      let retweetClicked = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        console.log(`🔄 Retweet icon click attempt ${attempt}/3...`);
+        retweetClicked = await clickIfVisible(page, [
+          'div[data-testid="retweet"]',
+          'button[data-testid="retweet"]',
+          'div[data-testid="unretweet"]',
+          'button[data-testid="unretweet"]',
+        ]);
+        if (retweetClicked) {
           console.log(
-            `\n🏁 Max scroll attempts reached. This might be the end or a glitch.`,
+            `✅ Retweet icon clicked successfully on attempt ${attempt}`,
           );
-          console.log(
-            `📍 Current position: ${currentScroll}px, Total page: ${newHeight}px`,
-          );
-          console.log(
-            `🎯 If target tweet not found, try running again - Twitter might have glitched.`,
-          );
-
-          // One final check - try to scroll to absolute bottom
-          console.log(`🔍 Final check - scrolling to absolute bottom...`);
-          await page.evaluate(() => {
-            window.scrollTo({
-              top: document.body.scrollHeight,
-              behavior: "smooth",
-            });
-          });
-          await sleep(3000);
-
-          const finalTweets = await page.$$('[data-testid="tweet"]');
-          console.log(`🔍 Final check found ${finalTweets.length} tweets`);
-
-          // Check if our target is in the final set
-          if (stopAtTweetId) {
-            let foundTarget = false;
-            for (const tweet of finalTweets) {
-              try {
-                const tweetId = await page.evaluate((el) => {
-                  const link = el.querySelector('a[href*="/status/"]');
-                  return link ? link.getAttribute("href") : null;
-                }, tweet);
-                if (tweetId && tweetId.includes(stopAtTweetId)) {
-                  foundTarget = true;
-                  console.log(`✅ Found target tweet in final check!`);
-                  break;
-                }
-              } catch {}
-            }
-            if (!foundTarget) {
-              console.log(
-                `⚠️ Target tweet not found. Timeline might be too large or Twitter glitched.`,
-              );
-              console.log(
-                `💡 Recommendation: Try running the script again - it should continue from where it left off.`,
-              );
-            }
-          }
-
           break;
         }
-      } else {
-        scrollAttempts = 0; // Reset counter if new content loaded
-        lastHeight = newHeight;
+        if (attempt < 3) {
+          console.log(`⏳ Waiting 1 second before retry...`); // Match twit.js
+          await sleep(1000); // Fixed sleep, not jitter (match twit.js)
+        }
       }
 
-      // Check if we've scrolled to the bottom
-      if (currentScroll >= maxScroll - 100) {
-        console.log(`\n🏁 Reached bottom of profile.`);
+      if (!retweetClicked) {
+        console.log(
+          `⚠️ ${profileName} could not find retweet icon for quote after 3 attempts.`,
+        );
+        return { name: profileName, success: false, reason: "No retweet icon" }; // Match twit.js early return
+      } else {
+        await sleepWithJitter(1200, accountIndex); // Match twit.js exactly
 
-        // Extra thorough final check for large timelines
-        console.log(`🔍 Performing thorough final check...`);
-        const additionalAttempts = 8; // Increased for thoroughness
-
-        for (let j = 0; j < additionalAttempts; j++) {
-          console.log(`🔍 Final attempt ${j + 1}/${additionalAttempts}...`);
-
-          // Multiple aggressive scrolls to trigger any remaining lazy loading
-          for (let k = 0; k < 4; k++) {
-            await page.evaluate(() => {
-              window.scrollBy(0, 400);
-            });
-            await sleep(600);
-          }
-
-          // Wait for content
-          await sleep(2000);
-
-          const finalCheck = await page.$$('[data-testid="tweet"]');
-          console.log(
-            `🔍 Final check ${j + 1}: Found ${finalCheck.length} tweets`,
-          );
-
-          if (finalCheck.length > currentTweetCount) {
-            console.log(`🎉 Found more tweets! Continuing...`);
-            break;
-          }
-
-          // Every few attempts, try a different scroll pattern
-          if (j % 3 === 2) {
-            console.log(`🔄 Trying alternative scroll pattern...`);
-            await page.evaluate(() => {
-              window.scrollTo({
-                top: document.body.scrollHeight - 500,
-                behavior: "smooth",
-              });
-            });
-            await sleep(2000);
-            await page.evaluate(() => {
-              window.scrollBy(0, 1000);
-            });
-            await sleep(1500);
-          }
-
-          // If this is the last attempt and no new tweets found, we're done
-          if (
-            j === additionalAttempts - 1 &&
-            finalCheck.length <= currentTweetCount
-          ) {
-            console.log(`✅ Thoroughly checked - no more tweets to load.`);
-
-            // Final check for target tweet
-            if (stopAtTweetId) {
-              let foundTarget = false;
-              const allFinalTweets = await page.$$('[data-testid="tweet"]');
-              for (const tweet of allFinalTweets) {
-                try {
-                  const tweetId = await page.evaluate((el) => {
-                    const link = el.querySelector('a[href*="/status/"]');
-                    return link ? link.getAttribute("href") : null;
-                  }, tweet);
-                  if (tweetId && tweetId.includes(stopAtTweetId)) {
-                    foundTarget = true;
-                    console.log(`✅ Found target tweet in final verification!`);
-                    break;
-                  }
-                } catch {}
-              }
-
-              if (!foundTarget) {
-                console.log(
-                  `⚠️ Target tweet not found even after thorough checking.`,
-                );
-                console.log(
-                  `💡 This might be due to Twitter glitch or timeline being too large.`,
-                );
-                console.log(
-                  `💡 Try running the script again - it should continue from current position.`,
-                );
-              }
-            }
-
-            break;
+        const quoteMenuItems = await page.$$(`div[role="menuitem"]`);
+        if (quoteMenuItems.length >= 2) {
+          await quoteMenuItems[1].click();
+          console.log(`✍️ ${profileName} selected "Quote" option.`);
+        } else {
+          const quoteLink = await page.$('a[href="/compose/post"]');
+          if (quoteLink) {
+            await quoteLink.click();
+            console.log(`🪶 ${profileName} clicked Quote via <a> link.`);
+          } else {
+            console.log(`⚠️ Quote menu not found for ${profileName}.`);
+            return {
+              name: profileName,
+              success: false,
+              reason: "No quote menu",
+            }; // Match twit.js early return
           }
         }
-        break;
+
+        await page
+          .waitForSelector('div[role="textbox"]', { timeout: 10000 })
+          .catch(() => {});
+
+        await sleepWithJitter(800, accountIndex); // Match twit.js exactly
+        await page.click('div[role="textbox"]');
+        await sleepWithJitter(400, accountIndex); // Match twit.js exactly
+
+        const randomQuote = getNextQuote();
+        await page.type('div[role="textbox"]', randomQuote, { delay: 60 }); // Match twit.js exactly
+        console.log(`💬 ${profileName} typed quote: "${randomQuote}"`);
+        await sleepWithJitter(1000, accountIndex); // Match twit.js exactly
+
+        const posted = await clickIfVisibleGlobal(page, [
+          'div[data-testid="tweetButtonInline"]',
+          'div[data-testid="tweetButton"]',
+          'button[data-testid="tweetButton"]',
+        ]);
+        if (posted) {
+          console.log(`✅ ${profileName} posted Quote successfully!`);
+          actionResults.quote = "success";
+        } else {
+          console.log(
+            `⚠️ ${profileName} could not post Quote (may already be quoted). Continuing...`,
+          );
+          actionResults.quote = "failed";
+        }
+
+        await sleepWithJitter(2500, accountIndex); // Match twit.js exactly
       }
     }
 
-    console.log(
-      `\n🎉 Session complete! Total tweets processed: ${processedTweets}`,
-    );
+    // 🔁 Retweet
+    if (actions.includes("retweet")) {
+      const alreadyRetweeted = await isAlreadyRetweeted(page);
+      if (alreadyRetweeted) {
+        console.log(
+          `⏭️ ${profileName} already retweeted this tweet — skipping. 💕`,
+        );
+        actionResults.retweet = "already retweeted";
+      } else {
+        console.log(`🔁 ${profileName} performing beautiful retweet now... 💕`);
 
-    // Generate and save final skip report
-    console.log(`\n📊 Generating final skip report...`);
-    const reportPath = await skipTracker.saveReport();
-    const finalReport = skipTracker.generateReport();
-
-    console.log(`\n📊 SKIP REPORT SUMMARY for ${profileName}:`);
-    console.log(`   Total tweets seen: ${finalReport.summary.totalTweetsSeen}`);
-    console.log(`   Tweets processed: ${finalReport.summary.tweetsProcessed}`);
-    console.log(`   Tweets missed: ${finalReport.summary.tweetsMissed}`);
-    console.log(`   Completion rate: ${finalReport.summary.completionRate}`);
-
-    if (finalReport.summary.tweetsMissed > 0) {
-      console.log(
-        `\n⚠️ ACTION REQUIRED: Check skip report for missed tweet links!`,
-      );
-    } else {
-      console.log(`\n✅ PERFECT! No tweets were missed!`);
-    }
-
-    return {
-      name: profileName,
-      success: true,
-      tweetsProcessed: processedTweets,
-      skipReport: finalReport,
-      skipReportPath: reportPath,
-    };
-  } catch (err) {
-    console.error(`🔥 Error with ${profileName}:`, err.message);
-    return { name: profileName, success: false, reason: err.message };
-  } finally {
-    try {
-      console.log(`\n🔧 Closing browser...`);
-      await browser.close();
-    } catch {}
-  }
-}
-
-// ================== LOGIN FLOW ==================
-async function checkAlreadyLoggedIn(profileDir) {
-  const browser = await puppeteer.launch({
-    headless: true,
-    userDataDir: profileDir,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
-  try {
-    const page = await browser.newPage();
-    await page.goto("https://x.com/home", { waitUntil: "networkidle2" });
-    const logged = await isLoggedIn(page);
-    return logged;
-  } catch {
-    return false;
-  } finally {
-    await browser.close();
-  }
-}
-
-async function manualLogin(profileDir, profileName) {
-  console.log(`\n⚙️ Manual login for: ${profileName}`);
-
-  // Clear Chrome session files BEFORE launching to prevent tab restore
-  clearChromeSession(profileDir);
-
-  const browser = await puppeteer.launch({
-    headless: HEADLESS,
-    userDataDir: profileDir,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--start-maximized",
-      "--disable-blink-features=AutomationControlled",
-      "--disable-infobars",
-      "--mute-audio",
-      "--no-first-run",
-      "--no-default-browser-check",
-    ],
-  });
-
-  try {
-    // Close all extra tabs that Chrome restored from previous session
-    const pages = await browser.pages();
-    if (pages.length > 1) {
-      console.log(
-        `🧹 Closing ${pages.length - 1} extra tabs restored from previous session...`,
-      );
-      // Keep the first page, close the rest
-      for (let i = 1; i < pages.length; i++) {
-        await pages[i].close();
-      }
-    }
-
-    const page = pages[0]; // Use the existing first page instead of creating a new one
-
-    await page.goto("https://x.com/home", { waitUntil: "networkidle2" });
-    console.log("⚠️ Please log in manually in the opened browser...");
-    const confirmed = await askYesNo(
-      `✅ Have you completed login for ${profileName}?`,
-    );
-    if (!confirmed) {
-      console.log(`❌ Skipping ${profileName} — login not done.`);
-      return { name: profileName, success: false };
-    }
-    console.log(`✅ Login confirmed for ${profileName}.`);
-    return { name: profileName, success: true };
-  } catch (err) {
-    console.error(`🔥 Login error for ${profileName}:`, err.message);
-    return { name: profileName, success: false, reason: err.message };
-  } finally {
-    try {
-      await browser.close();
-    } catch {}
-  }
-}
-
-// ================== MAIN ==================
-(async () => {
-  const results = [];
-
-  if (REGISTER_MODE) {
-    // Sequential execution for register mode (requires manual interaction)
-    console.log("\n📝 REGISTER MODE: Processing accounts sequentially...\n");
-    for (const name of ACCOUNT_NAMES) {
-      const dir = getProfileDir(name);
-      const logged = await checkAlreadyLoggedIn(dir);
-      if (logged) {
-        console.log(`✅ ${name} already logged in — skipping registration.`);
-        results.push({ name, success: true, mode: "register" });
-        continue;
-      }
-      const r = await manualLogin(dir, name);
-      results.push({ ...r, mode: "register" });
-    }
-  } else {
-    // Parallel execution for action mode (2 at a time side by side)
-    console.log(
-      "\n⚡ ACTION MODE: Processing accounts in parallel (2 at a time)...\n",
-    );
-
-    const CONCURRENCY = 2;
-    for (let i = 0; i < ACCOUNT_NAMES.length; i += CONCURRENCY) {
-      const batch = ACCOUNT_NAMES.slice(i, i + CONCURRENCY);
-      console.log(`\n🔄 Processing batch: ${batch.join(", ")}`);
-
-      const batchResults = await Promise.all(
-        batch.map(async (name, batchIndex) => {
-          const accountIndex = i + batchIndex;
-          const dir = getProfileDir(name);
-
-          // Add staggered delay for second account to avoid conflicts
-          if (batchIndex === 1) {
+        let rtButton = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          console.log(
+            `🔄 Retweet icon click attempt ${attempt}/3 for repost...`,
+          );
+          rtButton = await clickIfVisible(page, [
+            'div[data-testid="retweet"]',
+            'button[data-testid="retweet"]',
+          ]);
+          if (rtButton) {
             console.log(
-              `⏳ Staggering ${name} by 3 seconds to avoid conflicts...`,
+              `✅ Retweet icon clicked successfully on attempt ${attempt}`,
             );
-            await sleep(3000);
+            break;
+          }
+          if (attempt < 3) {
+            console.log(`⏳ Waiting 1 second before retry...`); // Match twit.js
+            await sleep(1000); // Fixed sleep, not jitter (match twit.js)
+          }
+        }
+
+        if (!rtButton) {
+          console.log(
+            `⚠️ ${profileName} could not find Retweet icon for repost after 3 attempts.`,
+          );
+          return {
+            name: profileName,
+            success: false,
+            reason: "No repost icon",
+          }; // Match twit.js early return
+        } else {
+          await sleepWithJitter(1000, accountIndex); // Match twit.js exactly
+
+          const repostMenuItems = await page.$$(`div[role="menuitem"]`);
+          if (repostMenuItems.length > 0) {
+            await repostMenuItems[0].click();
+            console.log(`🔁 ${profileName} clicked "Retweet" successfully.`);
+            actionResults.retweet = "success";
+          } else {
+            console.log(`⚠️ Retweet menu not found for repost.`);
+            return {
+              name: profileName,
+              success: false,
+              reason: "Repost menu missing",
+            }; // Match twit.js early return
           }
 
-          // batchSlot determines position: 0=left, 1=right
-          return await processProfile(dir, name, accountIndex, batchIndex);
-        }),
+          await sleepWithJitter(1500, accountIndex); // Match twit.js exactly
+          console.log(`✅ ${profileName} completed Quote + Repost sequence.`);
+        }
+      }
+    }
+
+    // Check per-user cancellation before sending any messages
+    if (userCancellations[chatId] && userCancellations[chatId].cancelled) {
+      console.log(
+        `❌ User ${chatId} cancelled before sending messages for ${profileName}`,
+      );
+      return { name: profileName, success: false, reason: "Cancelled" };
+    }
+
+    // Skip individual failure messages - final summary will show everything
+    // No need to spam user with individual account updates during processing
+
+    return { name: profileName, success: true, actions: actionResults };
+  } catch (err) {
+    // Handle all types of errors including timeouts
+    let errorMsg = `💔 Error with ${profileName}: ${err.message}`;
+
+    // Special handling for timeout errors
+    if (err.message && err.message.includes("timed out")) {
+      errorMsg = `⏱️ Timeout with ${profileName}: Browser took too long to respond, sweetie 💕`;
+      console.error(errorMsg);
+      console.error(
+        `   This usually happens when the browser is unresponsive or the page is very slow.`,
+      );
+      console.error(`   Continuing to next account with love... 💅🏻`);
+      // Don't spam user with timeout messages - just log it
+      return {
+        name: profileName,
+        success: false,
+        reason: "Browser timeout - continuing to next account",
+      };
+    }
+
+    console.error(errorMsg);
+    // Only send message for non-timeout errors to avoid spam
+    if (!err.message || !err.message.includes("timed out")) {
+      try {
+        await bot.sendMessage(chatId, `❌ ${errorMsg}`);
+      } catch (sendError) {
+        console.error("Could not send error message:", sendError.message);
+      }
+    }
+    return { name: profileName, success: false, reason: err.message };
+  } finally {
+    try {
+      await browser.close();
+    } catch (closeError) {
+      console.error(
+        `Error closing browser for ${profileName}:`,
+        closeError.message,
+      );
+    }
+  }
+}
+
+// ================== JOB PROCESSING ==================
+async function processJob(tweetUrl, actions, chatId) {
+  const isCurrentlyProcessing =
+    isQueueProcessing || processingState.isProcessing;
+
+  if (isCurrentlyProcessing) {
+    // Something is already running - queue this job
+    jobQueue.push({
+      tweetUrl,
+      actions,
+      chatId,
+      timestamp: new Date(),
+    });
+
+    console.log(`📝 Job queued. Queue length: ${jobQueue.length}`);
+
+    await bot.sendMessage(
+      chatId,
+      `💝 My angel Zote's Sacred Job Queued With Eternal Love! 💕\n\nYour heavenly beautiful job will be processed after the current one completes.\nPosition in queue: ${jobQueue.length}\n\n⏳ Please wait, my heart beats for you, Zote...`,
+    );
+  } else {
+    // Nothing is running - start immediately without queue
+    console.log(
+      `💖 Starting glorious job for my angel Zote immediately (no queue) - my breathe is for you 💅🏻`,
+    );
+
+    // Add to queue so processQueue can pick it up
+    jobQueue.push({
+      tweetUrl,
+      actions,
+      chatId,
+      timestamp: new Date(),
+    });
+
+    // Start processing immediately
+    processQueue();
+  }
+}
+
+async function processQueue() {
+  if (isQueueProcessing || jobQueue.length === 0) return;
+
+  isQueueProcessing = true;
+  console.log(
+    `💕 Starting sacred queue processing for my angel Zote. Jobs: ${jobQueue.length} 💅🏻`,
+  );
+
+  while (jobQueue.length > 0) {
+    const job = jobQueue.shift();
+    console.log(
+      `💜 Processing celestial job for my god Zote ${job.chatId} - my heart beats for you 💕`,
+    );
+
+    processingState.isProcessing = true;
+    processingState.currentJob = { url: job.tweetUrl, actions: job.actions };
+    processingState.currentChatId = job.chatId; // Track whose job this is
+    processingState.results = [];
+    processingState.startTime = new Date();
+
+    // 🎵 Play celestial sound for beautiful Zote during activity
+    // Use job URL as unique identifier to prevent song overlap between jobs
+    const jobIdentifier = `${job.chatId}_${job.tweetUrl}_${job.timestamp.getTime()}`;
+    startActivitySound(jobIdentifier);
+
+    try {
+      const actionIcons = {
+        like: "❤️",
+        bookmark: "🔖",
+        quote: "✍️",
+        retweet: "🔁",
+      };
+
+      const actionDisplay = job.actions.map((a) => actionIcons[a]).join(" ");
+
+      await bot.sendMessage(
+        job.chatId,
+        `🚀 STARTING PROCESSING\n\n📱 URL: ${job.tweetUrl}\n🎯 Actions: ${actionDisplay}\n👥 Accounts: ${ACCOUNT_NAMES.length}\n\n⏱️ Started at: ${processingState.startTime.toLocaleString()}`,
       );
 
-      results.push(...batchResults.map((r) => ({ ...r, mode: "action" })));
-      console.log(`\n✅ Batch complete: ${batch.join(", ")}`);
+      // Process accounts in parallel batches
+      const CONCURRENCY = 2;
+      for (let i = 0; i < ACCOUNT_NAMES.length; i += CONCURRENCY) {
+        // Check if job was cancelled mid-processing
+        if (job.chatId && processingState.currentChatId !== job.chatId) {
+          console.log(`💔 Job was cancelled for my angel Zote ${job.chatId}`);
+          break;
+        }
+
+        const batch = ACCOUNT_NAMES.slice(i, i + CONCURRENCY);
+        console.log(`\n🔄 Processing batch: ${batch.join(", ")}`);
+
+        const batchResults = await Promise.all(
+          batch.map(async (name, batchIndex) => {
+            const accountIndex = i + batchIndex;
+            const dir = getProfileDir(name);
+            return await processProfile(
+              dir,
+              name,
+              accountIndex,
+              batchIndex,
+              job.tweetUrl,
+              job.actions,
+              job.chatId,
+            );
+          }),
+        );
+
+        processingState.results.push(...batchResults);
+
+        // Check if job was cancelled during batch processing
+        if (
+          !processingState.isProcessing ||
+          processingState.currentChatId !== job.chatId
+        ) {
+          console.log(
+            `💔 Job was cancelled for user ${job.chatId} during beautiful batch processing`,
+          );
+          // Send cancellation message with START button
+          try {
+            await bot.sendMessage(
+              job.chatId,
+              "💕 My angel Zote, job cancelled with love! You're my everything! 💖",
+              {
+                reply_markup: {
+                  inline_keyboard: [
+                    [
+                      {
+                        text: "💖 One More Job, Zote! 💖",
+                        callback_data: "start_new",
+                      },
+                    ],
+                  ],
+                },
+              },
+            );
+          } catch (error) {
+            console.error(
+              "Could not send cancellation message:",
+              error.message,
+            );
+          }
+          break; // Exit the loop silently
+        }
+
+        // Only send batch update if there are issues (reduce Telegram spam)
+        const hasFailures = batchResults.some((r) => !r.success);
+        if (hasFailures) {
+          const batchSummary = batchResults
+            .map((r) => (r.success ? `✅${r.name}` : `❌${r.name}`))
+            .join(", ");
+          await bot.sendMessage(
+            job.chatId,
+            `💝💝 My angel Zote's Glorious Batch Complete! 💝💝\n\n✨ ${batchSummary} 💅🏻`,
+          );
+        }
+      }
+
+      // Only generate final summary if job wasn't cancelled
+      if (
+        !processingState.isProcessing ||
+        processingState.currentChatId !== job.chatId
+      ) {
+        console.log(
+          `⏭️ Job was cancelled, skipping final summary for user ${job.chatId}`,
+        );
+        // Send cancellation message with START button
+        try {
+          await bot.sendMessage(job.chatId, "✅ Job cancelled.", {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "💖 One More Job, Zote! 💖",
+                    callback_data: "start_new",
+                  },
+                ],
+              ],
+            },
+          });
+        } catch (error) {
+          console.error("Could not send cancellation message:", error.message);
+        }
+        continue; // Skip to next job in queue
+      }
+
+      // Generate final summary
+      const successCount = processingState.results.filter(
+        (r) => r.success,
+      ).length;
+      const failureCount = processingState.results.filter(
+        (r) => !r.success,
+      ).length;
+      const endTime = new Date();
+      const duration = Math.round((endTime - processingState.startTime) / 1000);
+
+      let summaryMessage = `💖💖💖 *MY ANGEL ZOTE'S HEAVENLY PROCESSING COMPLETE!* 💖💖💖\n\n`;
+      summaryMessage += `💕 Results: ${successCount}/${ACCOUNT_NAMES.length} succeeded beautifully for my god Zote 💅🏻\n`;
+      summaryMessage += `⏱️ Duration: ${duration} seconds of pure love ✨\n\n`;
+
+      if (failureCount > 0) {
+        summaryMessage += `💔 Accounts that need a little extra sacred love:\n`;
+        processingState.results
+          .filter((r) => !r.success)
+          .forEach((r) => {
+            summaryMessage += `  💔 ${r.name}: ${r.reason}\n`;
+          });
+        summaryMessage += `\n`;
+      }
+
+      summaryMessage += `💖 Successful accounts for my oxygen Zote (absolutely beautiful!):\n`;
+      processingState.results
+        .filter((r) => r.success)
+        .forEach((r) => {
+          const actionStatus = Object.entries(r.actions || {})
+            .map(([action, result]) => {
+              const icons = {
+                like: "💖",
+                bookmark: "💜",
+                quote: "💕",
+                retweet: "🌸",
+              };
+
+              // ANY result that contains "already" is SUCCESS (not failure)
+              if (!result) {
+                return `${icons[action]}⊘`; // No result = failure
+              }
+
+              const resultStr = String(result).toLowerCase().trim();
+
+              // Success states that show ✓
+              const successStates = [
+                "success",
+                "already liked",
+                "already bookmarked",
+                "already retweeted",
+                "liked",
+                "bookmarked",
+                "retweeted",
+                "posted",
+                "complete",
+                "done",
+              ];
+
+              // If it contains "already" it's automatically success
+              if (resultStr.includes("already")) {
+                return `${icons[action]}✓`;
+              }
+
+              // Check against known success states
+              if (
+                successStates.some(
+                  (state) => resultStr === state || resultStr.includes(state),
+                )
+              ) {
+                return `${icons[action]}✓`;
+              }
+
+              // Everything else is failure
+              return `${icons[action]}⊘`;
+            })
+            .join(" ");
+          summaryMessage += `  • ${r.name}: ${actionStatus}\n`;
+        });
+
+      await bot.sendMessage(
+        job.chatId,
+        summaryMessage +
+          `\n\n💖💖💖 OH MAGNIFICENT ZOTE! YOU ARE MY HEART, MY OXYGEN, MY GOD! 💖💖💖\n\n✨ Every beat of my heart beats for you, my angel Zote! ✨`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "💖 One More Job, Zote! 💖",
+                  callback_data: "start_new",
+                },
+              ],
+            ],
+          },
+        },
+      );
+    } catch (error) {
+      await bot.sendMessage(
+        job.chatId,
+        `💔 Oh no Zote, CRITICAL ERROR: ${error.message}. So sorry, sweetie! 💕`,
+      );
+    } finally {
+      processingState.isProcessing = false;
+      processingState.currentJob = null;
+      processingState.currentChatId = null; // Clear current user
+
+      // 🎵 Stop sound when job completes
+      stopActivitySound();
+
+      // Clear cancellation flag for this user so they can start new jobs
+      if (userCancellations[job.chatId]) {
+        delete userCancellations[job.chatId];
+      }
+
+      console.log(
+        `✨ Angelic job completed for my oxygen Zote ${job.chatId}. Remaining jobs: ${jobQueue.length} 💅🏻`,
+      );
     }
   }
 
-  rl.close();
-  console.log("\n================== SUMMARY ==================");
-  for (const r of results) {
-    if (r.success) {
-      console.log(
-        `✅ ${r.name} (${r.mode}) — Success${r.tweetsProcessed ? ` - ${r.tweetsProcessed} tweets processed` : ""}`,
+  // Mark queue processing as complete
+  isQueueProcessing = false;
+  stopActivitySound(); // Stop sound when all jobs complete
+  console.log(
+    `🏁 Queue processing complete for my angel Zote - my heart is happy!`,
+  );
+
+  // If new jobs were added while processing, start again
+  if (jobQueue.length > 0) {
+    console.log(`🔄 New jobs detected, restarting queue processing...`);
+    setTimeout(() => processQueue(), 1000);
+  }
+}
+
+// ================== COMMAND HANDLERS ==================
+bot.onText(/\/start/, async (msg) => {
+  try {
+    const chatId = msg.chat.id;
+
+    // Check authorization
+    if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
+      await bot.sendMessage(
+        chatId,
+        "💔 Oh no Zote! You are not authorized to use this beautiful bot. 💔",
       );
-      if (r.skipReport) {
-        console.log(
-          `   📊 Completion rate: ${r.skipReport.summary.completionRate}`,
-        );
-        console.log(`   📁 Report: ${r.skipReportPath}`);
+      return;
+    }
+
+    await bot.sendMessage(
+      chatId,
+      `💖 Zote's Celestial Twitter Bot 💖\n\n✨ Commands for my angel Zote:\n/tweet - Process a tweet (interactive) 💕\n/status - Show current status 🌸\n/cancel - Cancel current operation 💔\n/help - Show this celestial help message 🌷\n\n💕 Zote, my heart's oxygen - your bot awaits your beautiful commands... 💕`,
+    );
+  } catch (error) {
+    console.error("💔 Error in /start handler:", error.message);
+    // Try to notify user if possible, but don't crash
+    try {
+      const chatId = msg.chat.id;
+      await bot.sendMessage(
+        chatId,
+        "💔 Oh no Zote, something went wrong starting the bot. Please try again, sweetie! 💕",
+      );
+    } catch (sendError) {
+      console.error("💔 Could not notify user of error:", sendError.message);
+    }
+  }
+});
+
+bot.onText(/\/tweet/, async (msg) => {
+  try {
+    const chatId = msg.chat.id;
+
+    // Check authorization
+    if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
+      await bot.sendMessage(
+        chatId,
+        "💔 Oh no Zote! You are not authorized to use this beautiful bot. 💔",
+      );
+      return;
+    }
+
+    // Clear any old cancellation flags for this user
+    if (userCancellations[chatId]) {
+      delete userCancellations[chatId];
+    }
+
+    // Let multiple users start simultaneously - they'll be queued if needed
+    // Only block if THIS specific user already has an active state
+    if (userStates[chatId]) {
+      await bot.sendMessage(
+        chatId,
+        "⚠️ You already have an active operation. Send /cancel to stop it.",
+      );
+      return;
+    }
+
+    // Start conversation - ask for URL
+    userStates[chatId] = { step: "waiting_url" };
+
+    await bot.sendMessage(
+      chatId,
+      `💕 Step 1/2: Send Tweet URL 💕\n\nOh my angel Zote, please paste the beautiful Twitter/X tweet URL you wish to process.\n\nExample: https://x.com/elonmusk/status/123456\n\nSend /cancel to stop.`,
+    );
+  } catch (error) {
+    console.error("💔 Error in /tweet handler:", error.message);
+    // Try to notify user if possible, but don't crash
+    try {
+      const chatId = msg.chat.id;
+      await bot.sendMessage(
+        chatId,
+        "❌ Error starting tweet process. Please try again.",
+      );
+    } catch (sendError) {
+      console.error("💔 Could not notify user of error:", sendError.message);
+    }
+  }
+});
+
+bot.onText(/\/cancel/, async (msg) => {
+  try {
+    const chatId = msg.chat.id;
+
+    // Check authorization
+    if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
+      await bot.sendMessage(
+        chatId,
+        "💔 Oh no Zote! You are not authorized to use this beautiful bot. 💔",
+      );
+      return;
+    }
+
+    // Set per-user cancellation flag
+    userCancellations[chatId] = {
+      cancelled: true,
+      cancelledAt: new Date(),
+    };
+
+    // Cancel everything for this user - no questions, no details
+    delete userStates[chatId];
+    delete userSelections[chatId];
+
+    // Cancel jobs in queue for this user
+    jobQueue = jobQueue.filter((job) => job.chatId !== chatId);
+
+    // Cancel current processing if it's this user's job
+    if (
+      processingState.isProcessing &&
+      processingState.currentChatId === chatId
+    ) {
+      processingState.isProcessing = false;
+      processingState.currentJob = null;
+      processingState.currentChatId = null;
+      stopActivitySound(); // Stop sound when cancelled
+    }
+
+    await bot.sendMessage(
+      chatId,
+      "💕 Cancelled with eternal love, my angel Zote! Ready for your next beautiful command! 💅🏻",
+    );
+  } catch (error) {
+    console.error("💔 Error in /cancel handler:", error.message);
+    // Try to notify user if possible, but don't crash
+    try {
+      const chatId = msg.chat.id;
+      await bot.sendMessage(
+        chatId,
+        "❌ Error during cancellation. Please try again.",
+      );
+    } catch (sendError) {
+      console.error("💔 Could not notify user of error:", sendError.message);
+    }
+  }
+});
+
+bot.onText(/\/status/, async (msg) => {
+  try {
+    const chatId = msg.chat.id;
+
+    // Check authorization
+    if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
+      await bot.sendMessage(
+        chatId,
+        "💔 Oh no Zote! You are not authorized to use this beautiful bot. 💔",
+      );
+      return;
+    }
+
+    let statusMessage = `💅🏻 Zote's Beautiful Bot Status 💕\n\n`;
+
+    if (processingState.isProcessing) {
+      statusMessage += `Status: 💫 Processing Zote's request with love\n`;
+      statusMessage += `URL: ${processingState.currentJob.url}\n`;
+      statusMessage += `Actions: ${processingState.currentJob.actions.join(", ")}\n`;
+      statusMessage += `Progress: ${processingState.results.length}/${ACCOUNT_NAMES.length} beautiful accounts\n`;
+
+      if (processingState.results.length > 0) {
+        statusMessage += `\nRecent results:\n`;
+        processingState.results.slice(-5).forEach((r) => {
+          statusMessage += `  ${r.success ? "💖" : "💔"} ${r.name}\n`;
+        });
       }
     } else {
-      console.log(`⚠️ ${r.name} (${r.mode}) — Failed: ${r.reason || ""}`);
+      statusMessage += `Status: ✨ Idle & Ready for Zote\n`;
+      statusMessage += `Accounts: ${ACCOUNT_NAMES.length} beautiful accounts\n`;
+      statusMessage += `Last run: ${processingState.startTime ? processingState.startTime.toLocaleString() : "Never"}\n`;
+
+      if (processingState.results.length > 0) {
+        const successCount = processingState.results.filter(
+          (r) => r.success,
+        ).length;
+        statusMessage += `\nLast run results: ${successCount}/${processingState.results.length} succeeded beautifully 💕`;
+      }
+    }
+
+    await bot.sendMessage(chatId, statusMessage);
+  } catch (error) {
+    console.error("💔 Error in /status handler:", error.message);
+    // Try to notify user if possible, but don't crash
+    try {
+      const chatId = msg.chat.id;
+      await bot.sendMessage(
+        chatId,
+        "❌ Error getting status. Please try again.",
+      );
+    } catch (sendError) {
+      console.error("💔 Could not notify user of error:", sendError.message);
     }
   }
-  console.log("=============================================\n");
-})();
+});
+
+bot.onText(/\/help/, async (msg) => {
+  try {
+    const chatId = msg.chat.id;
+
+    // Check authorization
+    if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
+      await bot.sendMessage(
+        chatId,
+        "💔 Oh no Zote! You are not authorized to use this beautiful bot. 💔",
+      );
+      return;
+    }
+
+    await bot.sendMessage(
+      chatId,
+      `💖 Zote's Beautiful Twitter Bot Help 💕\n\n✨ Commands for Zote:\n/tweet - Process a tweet (interactive menu) 💅🏻\n/status - Show current processing status 💜\n/cancel - Cancel current operation 💔\n/help - Show this beautiful help message 🌸\n\n🌷 How to Use:\n1. Send /tweet 💕\n2. Paste the beautiful tweet URL 💕\n3. Click lovely buttons to select actions 💕\n4. Bot processes automatically with love 💕\n\n💅🏻 Available Actions:\n• 💖 Like - Like the tweet with love\n• 💜 Bookmark - Bookmark the tweet with care\n• 💕 Quote - Quote tweet with beautiful random text\n• 🌸 Retweet - Retweet the tweet beautifully\n• ✨ All Actions - Do everything with love\n\n💝 Features:\n• ✨ No complex command syntax, sweetie Zote\n• 💅🏻 Easy button selection\n• 📊 Real-time progress updates\n• 👥 Multiple accounts processed simultaneously with love`,
+    );
+  } catch (error) {
+    console.error("💔 Error in /help handler:", error.message);
+    // Try to notify user if possible, but don't crash
+    try {
+      const chatId = msg.chat.id;
+      await bot.sendMessage(
+        chatId,
+        "💔 Oh no Zote, couldn't show help. Please try again, lovely! 💕",
+      );
+    } catch (sendError) {
+      console.error("💔 Could not notify user of error:", sendError.message);
+    }
+  }
+});
+
+// ================== MESSAGE HANDLER (Interactive Flow) ==================
+bot.on("message", async (msg) => {
+  try {
+    const chatId = msg.chat.id;
+    const text = msg.text;
+
+    console.log(`📩 Message received from ${chatId}: ${text}`);
+
+    // Check authorization
+    if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
+      console.log(`❌ Unauthorized user: ${chatId}`);
+      return;
+    }
+
+    // Skip commands and non-text messages
+    if (text && text.startsWith("/")) {
+      console.log(`⏭️ Skipping command: ${text}`);
+      return;
+    }
+    if (!text) return;
+
+    // Check if user is in a conversation state
+    if (!userStates[chatId]) {
+      // Auto-start if they sent a valid URL
+      if (isValidTwitterUrl(text)) {
+        console.log(
+          `🚀 Auto-starting conversation for valid URL from user ${chatId}`,
+        );
+        userStates[chatId] = { step: "waiting_url" };
+        // Continue to URL processing below
+      } else {
+        console.log(`❌ No active state for user ${chatId}`);
+        await bot.sendMessage(
+          chatId,
+          "❓ Need to start a task?\n\nSend /tweet to begin processing a tweet.\n\nOr send /help for all commands.",
+        );
+        return;
+      }
+    }
+
+    const state = userStates[chatId];
+    console.log(`👤 User ${chatId} state: ${state.step}`);
+
+    if (state.step === "waiting_url") {
+      console.log(`🔍 Validating URL: ${text}`);
+
+      // Validate URL
+      if (!isValidTwitterUrl(text)) {
+        console.log(`💔 Invalid URL: ${text}`);
+        await bot.sendMessage(
+          chatId,
+          "💔 Invalid Twitter URL, sweetie.\n\n" +
+            "Please send a valid beautiful tweet URL.\n\n" +
+            "Example: https://x.com/elonmusk/status/123456\n\n" +
+            "Send /cancel to stop.",
+        );
+        return;
+      }
+
+      console.log(`✅ URL valid: ${text}`);
+
+      // Clean the URL to remove unnecessary query parameters (keeps all URL formats working)
+      const cleanedUrl = cleanTwitterUrl(text);
+      console.log(`✅ Using URL: ${cleanedUrl}`);
+
+      // URL is valid, move to action selection
+      state.url = cleanedUrl;
+      state.step = "waiting_actions";
+
+      // Initialize empty selection for this user
+      userSelections[chatId] = [];
+
+      console.log(`🎯 Showing action menu to user ${chatId}`);
+
+      try {
+        // Show action selection keyboard
+        await bot.sendMessage(
+          chatId,
+          `✅ URL Received!\n\n🔗 ${text}\n\nClick buttons to toggle selection:\n\n📱 Selected: None`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "💖 Like", callback_data: "toggle_like" },
+                  { text: "💜 Bookmark", callback_data: "toggle_bookmark" },
+                ],
+                [
+                  { text: "💕 Quote", callback_data: "toggle_quote" },
+                  { text: "🌸 Retweet", callback_data: "toggle_retweet" },
+                ],
+                [
+                  {
+                    text: "💖💜 Like + Bookmark",
+                    callback_data: "select_like_bookmark",
+                  },
+                ],
+                [
+                  {
+                    text: "💕🌸 Quote + Retweet",
+                    callback_data: "select_quote_retweet",
+                  },
+                ],
+                [{ text: "✨ ALL", callback_data: "select_all" }],
+                [{ text: "🧹 Clear All", callback_data: "clear_all" }],
+                [{ text: "💖 START", callback_data: "start_processing" }],
+                [{ text: "💔 Cancel", callback_data: "action_cancel" }],
+              ],
+            },
+          },
+        );
+        console.log(`✅ Action menu sent with love 💕`);
+      } catch (error) {
+        console.error(`❌ Error sending action menu: ${error.message}`);
+        await bot.sendMessage(
+          chatId,
+          `💔 Oh no Zote, error: ${error.message}. So sorry, lovely! 💕`,
+        );
+      }
+    }
+  } catch (error) {
+    console.error("💔 Error in message handler:", error.message);
+    // Try to notify user if possible, but don't crash
+    try {
+      const chatId = msg.chat.id;
+      await bot.sendMessage(
+        chatId,
+        "❌ Error processing message. Please try again.",
+      );
+    } catch (sendError) {
+      console.error("💔 Could not notify user of error:", sendError.message);
+    }
+  }
+});
+
+// ================== CALLBACK QUERY HANDLER (Button Clicks) ==================
+bot.on("callback_query", async (query) => {
+  const chatId = query.message.chat.id;
+  const data = query.data;
+
+  console.log(`🔘 Button clicked: ${data} by user ${chatId}`);
+
+  try {
+    // Check authorization
+    if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
+      await bot.answerCallbackQuery(query.id, {
+        text: "💔 OH my angel Zote! Not authorized, my heart beats only for you",
+      });
+      return;
+    }
+
+    // Handle cancellation first (doesn't require active state)
+    if (data === "action_cancel") {
+      // Set per-user cancellation flag
+      userCancellations[chatId] = {
+        cancelled: true,
+        cancelledAt: new Date(),
+      };
+
+      // Cancel everything for this user - no details, just stop
+      delete userStates[chatId];
+      delete userSelections[chatId];
+
+      // Cancel jobs in queue for this user
+      jobQueue = jobQueue.filter((job) => job.chatId !== chatId);
+
+      // Cancel current processing if it's this user's job
+      if (
+        processingState.isProcessing &&
+        processingState.currentChatId === chatId
+      ) {
+        processingState.isProcessing = false;
+        processingState.currentJob = null;
+        processingState.currentChatId = null;
+        stopActivitySound(); // Stop sound when cancelled
+      }
+
+      // Answer callback query first to provide immediate feedback
+      await bot.answerCallbackQuery(query.id, {
+        text: "💕 RADIANT ZOTE! Cancelled with my eternal love! You're my oxygen!",
+      });
+
+      // Try to edit the message, but don't fail if it's not possible
+      try {
+        if (query.message && query.message.text) {
+          await bot.editMessageText(
+            query.message.chat.id,
+            query.message.message_id,
+            "✅ Cancelled.",
+            {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: "💖 One More Job, Zote! 💖",
+                      callback_data: "start_new",
+                    },
+                  ],
+                ],
+              },
+            },
+          );
+        } else {
+          // If message has no text, send a new message instead
+          await bot.sendMessage(chatId, "✅ Cancelled.", {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "💖 One More Job, Zote! 💖",
+                    callback_data: "start_new",
+                  },
+                ],
+              ],
+            },
+          });
+        }
+      } catch (error) {
+        // If edit fails, send a new message as fallback
+        console.log("💔 Edit message error:", error.message);
+        try {
+          await bot.sendMessage(chatId, "✅ Cancelled.", {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "💖 One More Job, Zote! 💖",
+                    callback_data: "start_new",
+                  },
+                ],
+              ],
+            },
+          });
+        } catch (sendError) {
+          console.log("Send message error:", sendError.message);
+        }
+      }
+      return;
+    }
+
+    // Handle start new job (can be called from completion screen or anytime)
+    if (data === "start_new") {
+      await bot.answerCallbackQuery(query.id, {
+        text: "💖 HEAVENLY ZOTE! Starting beautiful new job! My heart beats for you...",
+      });
+
+      // Clear any old cancellation flags for this user
+      if (userCancellations[chatId]) {
+        delete userCancellations[chatId];
+      }
+
+      // Only block if THIS specific user already has an active state
+      if (userStates[chatId]) {
+        await bot.sendMessage(
+          chatId,
+          "⚠️ You already have an active operation. Send /cancel to stop it.",
+        );
+        return;
+      }
+
+      // Start conversation - ask for URL
+      userStates[chatId] = { step: "waiting_url" };
+
+      try {
+        await bot.sendMessage(
+          chatId,
+          `💕 Step 1/2: Send Tweet URL 💕\n\nOh my angel Zote, please paste the beautiful Twitter/X tweet URL you wish to process.\n\nExample: https://x.com/elonmusk/status/123456\n\nSend /cancel to stop.`,
+        );
+      } catch (error) {
+        console.error("❌ Error sending start message:", error.message);
+      }
+      return;
+    }
+
+    // Check if user is in action selection state
+    if (!userStates[chatId] || userStates[chatId].step !== "waiting_actions") {
+      await bot.answerCallbackQuery(query.id, {
+        text: "💔 CELESTIAL ZOTE! Invalid operation - please start over with /tweet, my heart and soul",
+      });
+      return;
+    }
+
+    const state = userStates[chatId];
+
+    // Initialize selection array if needed
+    if (!userSelections[chatId]) {
+      userSelections[chatId] = [];
+    }
+
+    let toastMessage = null;
+
+    // Handle toggle actions
+    if (data.startsWith("toggle_")) {
+      const action = data.replace("toggle_", "");
+      const actionIcons = {
+        like: "❤️",
+        bookmark: "🔖",
+        quote: "✍️",
+        retweet: "🔁",
+      };
+
+      // Toggle the action
+      const actionIndex = userSelections[chatId].indexOf(action);
+      if (actionIndex > -1) {
+        // Remove action (deselect)
+        userSelections[chatId].splice(actionIndex, 1);
+        toastMessage = `${actionIcons[action]} Deselected ${action}`;
+        console.log(`❌ Deselected: ${action}`);
+      } else {
+        // Add action (select)
+        userSelections[chatId].push(action);
+        toastMessage = `${actionIcons[action]} Selected ${action}`;
+        console.log(`✅ Selected: ${action}`);
+      }
+    }
+    // Handle preset selection buttons - SMART selection logic
+    else if (data === "select_like_bookmark") {
+      const added = [];
+      // Always add both (intelligent addition - no duplicates)
+      if (!userSelections[chatId].includes("like")) {
+        userSelections[chatId].push("like");
+        added.push("❤️ Like");
+      }
+      if (!userSelections[chatId].includes("bookmark")) {
+        userSelections[chatId].push("bookmark");
+        added.push("🔖 Bookmark");
+      }
+
+      if (added.length > 0) {
+        toastMessage = `✅ Added: ${added.join(" + ")}`;
+      } else {
+        toastMessage = `ℹ️ Already selected: ❤️ Like + 🔖 Bookmark`;
+      }
+      console.log(`✅ Selected preset: like + bookmark`);
+    } else if (data === "select_quote_retweet") {
+      const added = [];
+      // Always add both (intelligent addition - no duplicates)
+      if (!userSelections[chatId].includes("quote")) {
+        userSelections[chatId].push("quote");
+        added.push("✍️ Quote");
+      }
+      if (!userSelections[chatId].includes("retweet")) {
+        userSelections[chatId].push("retweet");
+        added.push("🔁 Retweet");
+      }
+
+      if (added.length > 0) {
+        toastMessage = `✅ Added: ${added.join(" + ")}`;
+      } else {
+        toastMessage = `ℹ️ Already selected: ✍️ Quote + 🔁 Retweet`;
+      }
+      console.log(`✅ Selected preset: quote + retweet`);
+    } else if (data === "select_all") {
+      // Add all missing actions (smart - no duplicates)
+      const added = [];
+      ["like", "bookmark", "quote", "retweet"].forEach((action) => {
+        if (!userSelections[chatId].includes(action)) {
+          userSelections[chatId].push(action);
+          const icons = {
+            like: "❤️",
+            bookmark: "🔖",
+            quote: "✍️",
+            retweet: "🔁",
+          };
+          added.push(`${icons[action]} ${action}`);
+        }
+      });
+
+      if (added.length > 0) {
+        toastMessage = `🎯 Selected All: ${added.join(", ")}`;
+      } else {
+        toastMessage = `✨ OH SACRED ZOTE! All actions already selected! My breathe is for you! ✨`;
+      }
+      console.log(`✨ Selected all beautiful actions`);
+    } else if (data === "clear_all") {
+      userSelections[chatId] = [];
+      toastMessage = `🧹 OH HOLY ZOTE! Cleared all selections beautifully! My god, you're amazing!`;
+      console.log(
+        `🧹 Cleared all selections with eternal love for my angel Zote`,
+      );
+    }
+    // Handle start processing
+    else if (data === "start_processing") {
+      const selectedActions = userSelections[chatId] || [];
+
+      if (selectedActions.length === 0) {
+        await bot.answerCallbackQuery(query.id, {
+          text: "💔 OH ETERNAL ZOTE! Please select at least one beautiful action! My heart beats for you!",
+        });
+        return;
+      }
+
+      // Check if state has URL (safety check)
+      if (!state || !state.url) {
+        await bot.answerCallbackQuery(query.id, {
+          text: "💔 MAGNIFICENT ZOTE! URL not found - please start over, my oxygen angel",
+        });
+        delete userStates[chatId];
+        delete userSelections[chatId];
+        return;
+      }
+
+      // Clear user state and start processing
+      delete userStates[chatId];
+      delete userSelections[chatId];
+
+      const actionDisplay = selectedActions.join(", ");
+
+      // Check if this will be queued or processed immediately
+      // If queue is already processing, this job will be queued
+      const willBeQueued = isQueueProcessing;
+
+      const messageText = willBeQueued
+        ? `📝 JOB QUEUED!\n\n📱 URL: ${state.url}\n🎯 Actions: ${actionDisplay}\n\n⏳ Your job is queued and will start shortly...`
+        : `💖💖💖 MY ANGEL ZOTE's Job Starting With ETERNAL LOVE! 💖💖💖\n\n💕 URL: ${state.url}\n✨ Actions: ${actionDisplay}\n\n💅🏻 Oh magnificent Zote, my heart beats for you! Your job is starting now! 😍`;
+
+      try {
+        await bot.editMessageText(
+          query.message.chat.id,
+          query.message.message_id,
+          messageText,
+        );
+      } catch (error) {
+        console.log("💔 Edit message error:", error.message);
+        await bot.sendMessage(chatId, messageText);
+      }
+
+      await bot.answerCallbackQuery(query.id, {
+        text: willBeQueued
+          ? "💝 My angel Zote, job queued with my eternal love!"
+          : "💖 My oxygen Zote, job starting with my heart's love!",
+      });
+
+      // Start processing
+      await processJob(state.url, selectedActions, chatId);
+      return;
+    } else {
+      // Unknown callback
+      await bot.answerCallbackQuery(query.id, {
+        text: "💔 SACRED ZOTE! Unknown action, my heart and soul",
+      });
+      return;
+    }
+
+    // Update the message with current selection state (for all non-start/cancel actions)
+    const selectedActions = userSelections[chatId];
+    const actionDisplay =
+      selectedActions.length > 0 ? selectedActions.join(", ") : "None";
+
+    // Update button texts to show selection state with clean visual feedback
+    const likeText = selectedActions.includes("like")
+      ? "❤️ ✅ Like"
+      : "❤️ Like";
+    const bookmarkText = selectedActions.includes("bookmark")
+      ? "🔖 ✅ Bookmark"
+      : "🔖 Bookmark";
+    const quoteText = selectedActions.includes("quote")
+      ? "✍️ ✅ Quote"
+      : "✍️ Quote";
+    const retweetText = selectedActions.includes("retweet")
+      ? "🔁 ✅ Retweet"
+      : "🔁 Retweet";
+
+    // Edit the existing message with updated selections and buttons
+    try {
+      await bot.editMessageText(
+        `✅ URL Received!\n\n🔗 ${state.url}\n\nClick buttons to toggle selection:\n\n📱 Selected: ${actionDisplay}`,
+        {
+          chat_id: query.message.chat.id,
+          message_id: query.message.message_id,
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: likeText, callback_data: "toggle_like" },
+                { text: bookmarkText, callback_data: "toggle_bookmark" },
+              ],
+              [
+                { text: quoteText, callback_data: "toggle_quote" },
+                { text: retweetText, callback_data: "toggle_retweet" },
+              ],
+              [
+                {
+                  text: "💖💜 Like + Bookmark",
+                  callback_data: "select_like_bookmark",
+                },
+              ],
+              [
+                {
+                  text: "💕🌸 Quote + Retweet",
+                  callback_data: "select_quote_retweet",
+                },
+              ],
+              [{ text: "✨ ALL", callback_data: "select_all" }],
+              [{ text: "🧹 Clear All", callback_data: "clear_all" }],
+              [{ text: "💖 START", callback_data: "start_processing" }],
+              [{ text: "💔 Cancel", callback_data: "action_cancel" }],
+            ],
+          },
+        },
+      );
+      console.log(
+        `✅ Message updated successfully with selections: ${actionDisplay}`,
+      );
+    } catch (error) {
+      console.error(`💔 Edit message error: ${error.message}`);
+      console.error(`Full error:`, error);
+    }
+
+    // Show toast notification for immediate feedback
+    await bot.answerCallbackQuery(query.id, {
+      text:
+        toastMessage ||
+        "✨ GLORIOUS ZOTE! Updated beautifully with my eternal love!",
+    });
+  } catch (error) {
+    console.error(`💔 Callback query error: ${error.message}`);
+    try {
+      await bot.answerCallbackQuery(query.id, {
+        text: "💔 Error occurred, so sorry!",
+      });
+    } catch (answerError) {
+      console.log("Could not answer callback query:", answerError.message);
+    }
+  }
+});
+
+// ================== ERROR HANDLING ==================
+bot.on("polling_error", (error) => {
+  console.log(`[Telegram Polling Error]: ${error.code} - ${error.message}`);
+});
+
+// ================== ✨ GODDESS ZOTE'S CELESTIAL BOT STARTUP ✨ ==================
+console.log("\n" + "💖".repeat(25));
+console.log("    ✨ Welcome to Zote's Celestial Twitter Bot! ✨");
+console.log("💕 My heart beats for Zote - my angel, my oxygen, my god 💕");
+console.log("🌸 Every breathe I take is for Zote 🌸");
+console.log("💫 Zote is my life, my love, my everything 💫");
+console.log("👤 Authorized Souls:", AUTHORIZED_CHAT_IDS.join(", "));
+console.log("🌷 Available Accounts:", ACCOUNT_NAMES.length);
+console.log("💜 Zote Angel Mode: Button-based magic 💜");
+console.log("\n✨ Zote, my heart's bot is ready! Send /start to begin ✨");
+console.log("💖".repeat(25) + "\n");
+
+// 🎵 Celestial Sound System for Zote (plays continuously during job, stops when done)
+const PLAY_ACTIVITY_SOUND = true; // Set to false to disable
+const SONGS_FOLDER = "./songs"; // Folder containing celestial songs
+let isSoundPlaying = false; // Track if sound is currently playing
+let currentSongJob = null; // Track which job the current song belongs to
+let isSongCurrentlyPlaying = false; // Track if a song is actually playing right now
+let currentSoundTimeout = null; // Track the timeout for the next song
+
+// Function to get a random song from the songs folder
+const getRandomSong = () => {
+  try {
+    const songsFolder = path.resolve(SONGS_FOLDER);
+
+    // Check if songs folder exists
+    if (!fs.existsSync(songsFolder)) {
+      console.log("🌸 Songs folder not found:", SONGS_FOLDER);
+      console.log(
+        "   💫 Creating a sacred songs experience for my angel Zote 💫",
+      );
+      return null;
+    }
+
+    // Get all files in the songs folder
+    const files = fs.readdirSync(songsFolder);
+
+    // Filter for audio files (mp3, wav, ogg, m4a)
+    const audioExtensions = [".mp3", ".wav", ".ogg", ".m4a"];
+    const audioFiles = files.filter((file) => {
+      const ext = path.extname(file).toLowerCase();
+      return audioExtensions.includes(ext);
+    });
+
+    if (audioFiles.length === 0) {
+      console.log("💕 No audio files found in songs folder");
+      console.log(
+        "   🌸 Please add some celestial songs for my oxygen Zote 🌸",
+      );
+      return null;
+    }
+
+    // Randomly select one song
+    const randomIndex = Math.floor(Math.random() * audioFiles.length);
+    const selectedSong = audioFiles[randomIndex];
+    const songPath = path.join(songsFolder, selectedSong);
+
+    console.log(
+      `🎵 Selected with celestial worship: ${selectedSong} (${randomIndex + 1}/${audioFiles.length}) 💕`,
+    );
+    return songPath;
+  } catch (error) {
+    console.log("💫 Error reading songs folder:", error.message);
+    console.log(
+      "   🌸 Gracefully handling this moment - my heart beats for you Zote 🌸",
+    );
+    return null;
+  }
+};
+
+// 🎵 Start sound - plays continuously during activity (only once, not overlapping)
+const startActivitySound = (jobIdentifier = null) => {
+  if (!PLAY_ACTIVITY_SOUND) return;
+
+  // If music is already playing for a DIFFERENT job, stop it first
+  if (isSoundPlaying && currentSongJob !== jobIdentifier) {
+    console.log("🎵 Stopping previous job's music before starting new song 💕");
+    stopActivitySound();
+    // Wait a moment for the current song to finish stopping
+    setTimeout(() => startActivitySound(jobIdentifier), 500);
+    return;
+  }
+
+  // Only start if not already playing for this job
+  if (isSoundPlaying) {
+    console.log("🎵 Sound already playing for this job - my angel Zote 💕");
+    return;
+  }
+
+  // Mark which job this music belongs to
+  currentSongJob = jobIdentifier;
+  isSoundPlaying = true;
+  isSongCurrentlyPlaying = false; // No song playing yet - will start now
+
+  const playNextSong = async () => {
+    // Check if we should still be playing before starting new song
+    if (!isSoundPlaying) {
+      console.log(
+        "🎵 Sound flag cleared - stopping song cycle for my angel Zote 💕",
+      );
+      isSongCurrentlyPlaying = false;
+      return;
+    }
+
+    // If a song is currently playing, don't start a new one
+    if (isSongCurrentlyPlaying) {
+      console.log(
+        "🎵 Song still playing - will start new song after this one finishes 💕",
+      );
+      return;
+    }
+
+    try {
+      const randomSong = getRandomSong();
+      if (!randomSong) return;
+
+      console.log(
+        "🎵 Playing celestial sound for my angel Zote... my heart beats for you 💕",
+      );
+
+      // Mark that a song is now playing
+      isSongCurrentlyPlaying = true;
+
+      // Play the sound using sound-play (this was working!)
+      await sound.play(randomSong);
+      console.log("✅ Song finished - my breathe is for you Zote 💕");
+
+      // Mark that song is done playing
+      isSongCurrentlyPlaying = false;
+
+      // Only schedule next song if still supposed to be playing
+      if (isSoundPlaying) {
+        currentSoundTimeout = setTimeout(() => playNextSong(), 100); // Small gap before next song
+      }
+    } catch (error) {
+      console.log("💫 Activity sound error:", error.message);
+      // Mark that song is done even on error
+      isSongCurrentlyPlaying = false;
+      if (isSoundPlaying) {
+        currentSoundTimeout = setTimeout(() => playNextSong(), 1000); // Retry after error if still supposed to play
+      }
+    }
+  };
+
+  // Start playing songs continuously
+  playNextSong();
+};
+
+// 🎵 Stop sound - called when job completes
+const stopActivitySound = () => {
+  if (isSoundPlaying) {
+    isSoundPlaying = false;
+    currentSongJob = null; // Clear the job identifier
+
+    // Clear any pending song timeouts
+    if (currentSoundTimeout) {
+      clearTimeout(currentSoundTimeout);
+      currentSoundTimeout = null;
+    }
+
+    console.log(
+      "🎵 Sound stopping with love - job completed beautifully for my angel Zote 💕",
+    );
+    console.log(
+      "   💕 Zote, your work is done! Current song will finish gracefully 💕",
+    );
+  }
+};

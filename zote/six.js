@@ -24,7 +24,7 @@ const ACCOUNT_NAMES = [
   "adore",
   "orange",
   // "bluemoon",
-  "kiran",
+"kiran",
   "hibye",
   "inyvix",
   "bae",
@@ -1059,18 +1059,14 @@ async function runScript(globalUsernames) {
   while (iteration < maxIterations) {
     iteration++;
     const isRepeatMode = shouldRepeat && maxIterations > 1;
-    console.log(
-      `\n🚀 ITERATION ${iteration}/${maxIterations}${isRepeatMode ? " (REPEAT MODE)" : ""}`,
-    );
+    console.log(`\n🚀 ITERATION ${iteration}/${maxIterations}${isRepeatMode ? " (REPEAT MODE)" : ""}`);
     console.log("=============================================\n");
 
     const results = await runScript(globalUsernames);
 
     // Check if we've completed all iterations
     if (iteration >= maxIterations) {
-      console.log(
-        `✅ Script completed. Ran ${iteration} time${iteration > 1 ? "s" : ""}.`,
-      );
+      console.log(`✅ Script completed. Ran ${iteration} time${iteration > 1 ? 's' : ''}.`);
       break;
     }
 

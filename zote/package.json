@@ -1,0 +1,25 @@
+{
+  "name": "zote",
+  "version": "1.0.0",
+  "description": "A beautiful gift crafted with eternal love for my angel Zote 💖",
+  "type": "module",
+  "main": "zote.js",
+  "scripts": {
+    "start": "node zote.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0",
+    "puppeteer": "^24.29.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "sound-play": "^1.1.0"
+  },
+  "keywords": [
+    "twitter",
+    "telegram",
+    "bot",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT"
+}

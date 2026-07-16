@@ -3,26 +3,24 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import fs from "fs";
 import path from "path";
 import TelegramBot from "node-telegram-bot-api";
+import { spawn, exec } from "child_process";
 
 // 🧩 Enable stealth plugin to bypass bot detection
 puppeteer.use(StealthPlugin());
 
 // ================== CONFIG ==================
 const BASE_USER_DATA_DIR =
-  process.env.BASE_USER_DATA_DIR ||
   "C:\\Users\\HP\\AppData\\Local\\Google\\Chrome\\User Data\\Automation";
 
 const ACCOUNT_NAMES = [
   "adore",
   "orange",
-  "bluemoon", // bae slay
-  "kiran",
-  //   "hibye",
-  //   "inyvix",
-  //   "bae", // adore
-  //   "anchinka",
-  //   "ivy",
-  //   "meera",
+  "bluemoon",
+  "one",
+  "hibye",
+  "inyvix",
+  "bae",
+  "anchinka",
 ];
 
 const HEADLESS = false;
@@ -36,13 +34,8 @@ const ENABLE_CONFIG_TIMER = false;
 const CONFIG_TIMER_SECONDS = 15; // How long to wait before redirecting to tweet URL (in seconds)
 
 // Telegram Configuration
-const TELEGRAM_BOT_TOKEN = "8958275656:AAEkCWz0uLzooC0eXNWrRQM8i4RUX0biLbc";
-const AUTHORIZED_CHAT_IDS = [
-  "1991164194",
-  "1956483216",
-  "8749929962",
-  "6961012476",
-];
+const TELEGRAM_BOT_TOKEN = "8915264413:AAELOPCBot0RzPQlGupo0ZtaZ8eufOrvc0E";
+const AUTHORIZED_CHAT_IDS = ["1991164194", "6961012476"];
 
 if (!TELEGRAM_BOT_TOKEN) {
   console.error("❌ TELEGRAM_BOT_TOKEN not configured");
@@ -109,170 +102,37 @@ function sleepWithJitter(ms, accountIndex) {
 
 // ================== QUOTES ==================
 const QUOTES = [
-  "No means no, and yes means yes. Consent is everything.",
-  "Your body, your rules. No one has the right to violate you.",
-  "Survivors are not victims. They are fighters, warriors, and heroes.",
-  "Sexual violence is never the survivor's fault. Never.",
-  "Believe survivors. Listen to survivors. Support survivors.",
-  "Consent must be enthusiastic, ongoing, and freely given.",
-  "No one asks for sexual assault. No one deserves it.",
-  "Silence is not consent. Only yes is consent.",
-  "Your body is your sanctuary. No one has the right to invade it.",
-  "Rape culture ends when we stop making excuses for perpetrators.",
-  "Survivors deserve justice, healing, and unconditional support.",
-  "Consent is not just about sex. It's about respect and autonomy.",
-  "No amount of alcohol, clothing, or behavior justifies sexual violence.",
-  "Survivors are not 'damaged goods.' They are resilient human beings.",
-  "Teaching consent is not just for women. It's for everyone.",
-  "The only person responsible for sexual assault is the perpetrator.",
-  "Survivors don't owe anyone their story or their silence.",
-  "Support survivors. Believe survivors. End sexual violence.",
-  "Consent is a continuous conversation, not a one-time agreement.",
-  "Your body belongs to you. Period. End of discussion.",
-  "Sexual violence is a crime. Period. No exceptions.",
-  "Survivors deserve to be heard, believed, and supported.",
-  "No one has the right to touch you without your enthusiastic consent.",
-  "Teaching boys to respect boundaries is as important as teaching girls to set them.",
-  "Survivors are not defined by what happened to them.",
-  "Consent is sexy. Violation is a crime.",
-  "No always means no. Yes only means yes when it's freely given.",
-  "Survivors don't owe anyone forgiveness or closure.",
-  "Your body is not public property. It's yours alone.",
-  "End rape culture. Start believing survivors.",
-  "Consent is not ambiguous. It's clear, ongoing, and revocable.",
-  "Your boundaries are valid. Your 'no' is enough.",
-  "Survivors reclaim their power every single day.",
-  "Consent cannot be assumed. It must be explicitly given.",
-  "No one is entitled to access to your body.",
-  "Survivors deserve safe spaces to heal and grow.",
-  "Sexual violence is about power, never about desire.",
-  "Teach consent early, teach consent often.",
-  "Survivors' stories matter. Their truth matters.",
-  "No one has the right to pressure or coerce you.",
-  "Your comfort zone should never be violated.",
-  "Consent education is violence prevention.",
-  "Survivors are stronger than their darkest moments.",
-  "No always means no, regardless of relationship status.",
-  "Your body is not permission. Your presence is not consent.",
-  "Believing survivors is an act of justice.",
-  "Consent is not a gray area. It's black and white.",
-  "Survivors don't owe you explanations.",
-  "No amount of previous consent gives anyone ongoing rights.",
-  "Your safety matters more than anyone's discomfort.",
-  "Survivors heal at their own pace, on their own terms.",
-  "Consent must be given without pressure or manipulation.",
-  "No one is entitled to sex. No exceptions.",
-  "Survivors deserve resources, support, and validation.",
-  "Teaching consent is teaching respect for human dignity.",
-  "Your body is not a playground for others.",
-  "Consent cannot be given when someone is incapacitated.",
-  "Survivors are not responsible for preventing their own assault.",
-  "No one has the right to make you feel unsafe.",
-  "Consent is about mutual respect and care.",
-  "Survivors' healing journey is their own to navigate.",
-  "No amount of money or status gives anyone the right to violate.",
-  "Your comfort and safety are non-negotiable.",
-  "Consent must be informed, enthusiastic, and revocable.",
-  "Survivors deserve to feel safe in their own skin.",
-  "No one is entitled to your time, attention, or body.",
-  "Teaching boundaries is teaching self-worth.",
-  "Survivors reclaim their voice, their power, their life.",
-  "Consent is the foundation of healthy relationships.",
-  "No means no. Yes means yes. Everything else is no.",
-  "Survivors are not alone. They are surrounded by support.",
-  "Your body autonomy is absolute and non-negotiable.",
-  "Consent cannot be coerced, pressured, or manipulated.",
-  "Survivors deserve to be believed without question.",
-  "No one has the right to cross your boundaries.",
-  "Your safety is more important than anyone's feelings.",
-  "Consent education saves lives.",
-  "Survivors are not statistics. They are human beings.",
-  "No one is entitled to sexual access to anyone.",
-  "Your body is not up for debate or discussion.",
-  "Consent must be clear, conscious, and continuous.",
-  "Survivors deserve to thrive, not just survive.",
-  "No one has the right to invalidate your experience.",
-  "Consent is about communication, not assumption.",
-  "Survivors' resilience is their superpower.",
-  "Your comfort matters. Your safety matters. You matter.",
-  "Teaching consent creates a culture of respect.",
-  "Survivors are the experts of their own experience.",
-  "No one has the right to use your body without permission.",
-  "Consent is not a favor. It's a fundamental right.",
-  "Survivors deserve justice, validation, and peace.",
-  "Your boundaries are sacred. Respect them.",
-  "Consent is about equality, not entitlement.",
-  "Survivors heal, grow, and reclaim their power.",
-  "No one is entitled to sexual access under any circumstances.",
-  "Your body is yours alone. Always has been, always will be.",
-  "Consent education is violence prevention education.",
-  "Survivors deserve to be heard without judgment.",
-  "No one has the right to make you feel guilty for saying no.",
-  "Consent is the minimum requirement for any sexual activity.",
-  "Survivors are not broken. They are healing and whole.",
-  "Your comfort zone is your right to defend.",
-  "Consent must be given freely, without fear or pressure.",
-  "Survivors' voices deserve to be amplified.",
-  "No one is entitled to your body, ever, under any condition.",
-  "Your safety is not negotiable.",
-  "Consent is about respect, not conquest.",
-  "Survivors deserve to feel proud of their survival.",
-  "No one has the right to question your boundaries.",
-  "Consent is clear, communicative, and compassionate.",
-  "Survivors are not defined by someone else's crime.",
-  "Your body autonomy is not up for discussion.",
-  "Consent cannot be given under duress or fear.",
-  "Survivors deserve to reclaim their narrative.",
-  "No one has the right to manipulate or coerce you.",
-  "Your 'no' is a complete sentence. It needs no explanation.",
-  "Consent education starts with respecting children's boundaries.",
-  "Survivors are warriors in their healing journey.",
-  "No one is entitled to sexual attention or access.",
-  "Your body is not a reward. Your presence is not consent.",
-  "Consent must be explicit, not implied or assumed.",
-  "Survivors deserve communities that believe and support them.",
-  "No one has the right to make you feel obligated.",
-  "Your comfort zone is your sacred space.",
-  "Consent is about mutual pleasure and agreement.",
-  "Survivors are not responsible for their perpetrator's actions.",
-  "No one is entitled to touch you, ever, without clear consent.",
-  "Your body is yours to control, completely and absolutely.",
-  "Consent cannot be withdrawn under pressure or threat.",
-  "Survivors deserve to feel safe and empowered.",
-  "No one has the right to invalidate your trauma.",
-  "Consent is the foundation of all healthy interactions.",
-  "Survivors heal on their own timeline, at their own pace.",
-  "Your boundaries deserve to be respected without question.",
-  "Consent must be clear, coherent, and willing.",
-  "Survivors are not weak. They are incredibly strong.",
-  "No one has the right to use guilt as a weapon.",
-  "Your body is not for others to control or claim.",
-  "Consent education creates safer communities for everyone.",
-  "Survivors deserve to live without fear and shame.",
-  "No one is entitled to sexual access, regardless of relationship.",
-  "Your safety is worth more than anyone's convenience.",
-  "Consent is about communication, clarity, and care.",
-  "Survivors are not alone in their healing journey.",
-  "No one has the right to minimize your experience.",
-  "Your comfort and safety are fundamental rights.",
-  "Consent must be enthusiastic, not just absent of refusal.",
-  "Survivors deserve to be believed without hesitation.",
-  "No one is entitled to access to your body, ever.",
-  "Your body autonomy is absolute and non-debatable.",
-  "Consent cannot be given when power dynamics are unequal.",
-  "Survivors reclaim their power every single day.",
-  "No one has the right to question your trauma.",
-  "Your body is not a battlefield for others' desires.",
-  "Consent is about equality, respect, and mutual care.",
-  "Survivors deserve to thrive in their healing journey.",
-  "No one is entitled to sexual attention under any circumstances.",
-  "Your 'no' is powerful. Your 'yes' is precious.",
-  "Consent education is essential for creating safe spaces.",
-  "Survivors are not responsible for fixing rape culture.",
-  "No one has the right to make you feel small or powerless.",
-  "Your body is yours to love, protect, and celebrate.",
-  "Consent must be given freely, joyfully, and willingly.",
-  "Survivors deserve to feel proud of their resilience.",
+  "Women's rights are human rights, period.",
+  "No means no, it's not that complicated.",
+  "My body, my choice - always.",
+  "Believe women, always.",
+  "Consent is not optional.",
+  "Stop telling women to be polite to their harassers.",
+  "Women don't owe men smiles or conversations.",
+  "Sexual harassment is never the victim's fault.",
+  "Rape culture is real and we need to talk about it.",
+  "Teach men not to rape, not women to avoid rape.",
+  "Women's safety should not be controversial.",
+  "Feminism is just equality, nothing more.",
+  "The future is female.",
+  "Women supporting women is the most powerful thing.",
+  "Your voice matters, use it.",
+  "Stand up for what's right, even if you stand alone.",
+  "Women are not objects for male consumption.",
+  "My worth is not defined by my relationship to men.",
+  "I am a woman, not a resource for men.",
+  "Women's anger is justified and necessary.",
+  "The personal is political.",
+  "Sisterhood is powerful.",
+  "Empowered women empower women.",
+  "We should not have to be afraid to exist in public spaces.",
+  "Street harassment is not a compliment, it's violence.",
+  "Women's fear is real and valid.",
+  "Stop policing women's bodies.",
+  "Reproductive rights are human rights.",
+  "Equal pay for equal work.",
+  "Breaking the glass ceiling.",
+  "Women's rights are not up for debate.",
 ];
 
 function shuffleArray(array) {
@@ -373,7 +233,7 @@ function clearChromeSession(profileDir) {
       });
     }
   } catch (err) {
-    console.log("⚠️ Could not clear session files:", err.message);
+    console.log("💫 Could not clear session files:", err.message);
   }
 }
 
@@ -511,7 +371,6 @@ async function analyzeTweetSize(page) {
 
     return analysis;
   } catch (err) {
-    console.log("Tweet analysis error:", err.message);
     return null;
   }
 }
@@ -660,7 +519,7 @@ function cleanTwitterUrl(url) {
       }
     });
     const cleaned = urlObj.toString();
-    console.log(`🧹 URL cleaned: ${url} → ${cleaned}`);
+    console.log(`💅🏻 URL cleaned beautifully: ${url} → ${cleaned} 💕`);
     return cleaned;
   } catch (error) {
     console.log("⚠️ URL cleaning failed, using original:", error.message);
@@ -680,7 +539,9 @@ async function processProfile(
 ) {
   // Check per-user cancellation before launching browser
   if (userCancellations[chatId] && userCancellations[chatId].cancelled) {
-    console.log(`❌ User ${chatId} cancelled before launching ${profileName}`);
+    console.log(
+      `💔 User ${chatId} cancelled before launching ${profileName} 💕`,
+    );
     return { name: profileName, success: false, reason: "Cancelled" };
   }
 
@@ -692,9 +553,9 @@ async function processProfile(
   const posX = (batchSlot % 2) * WINDOW_WIDTH;
   const posY = Math.floor(batchSlot / 2) * WINDOW_HEIGHT;
 
-  console.log(`\n🚀 Launching Chrome for: ${profileName}`);
+  console.log(`\n💖 Launching Chrome for: ${profileName} 💕`);
   console.log(`   ├─ UA: ${fingerprint.userAgent.substring(0, 50)}...`);
-  console.log(`   └─ Position: [${posX}, ${posY}] (Slot ${batchSlot})`);
+  console.log(`   └─ Position: [${posX}, ${posY}] (Slot ${batchSlot}) 🌸`);
 
   const browser = await puppeteer.launch({
     headless: HEADLESS,
@@ -731,9 +592,9 @@ async function processProfile(
     for (let i = 0; i < pages.length; i++) {
       try {
         const url = pages[i].url();
-        if (url.includes("x.com") || url.includes("twitter.com")) {
+        if (url.includes('x.com') || url.includes('twitter.com')) {
           xTab = pages[i];
-        } else if (url === "about:blank" || url.includes("chrome://")) {
+        } else if (url === 'about:blank' || url.includes('chrome://')) {
           blankTabs.push(pages[i]);
         }
       } catch (e) {
@@ -784,25 +645,18 @@ async function processProfile(
 
     // Wait for loading spinners to disappear and page to be ready
     console.log(`⏳ ${profileName} waiting for page to fully load...`);
-    await sleepWithJitter(SLEEP_MS, accountIndex); // Initial wait
+    await sleepWithJitter(SLEEP_MS, accountIndex); // Match twit.js exactly - Initial wait
 
     // Wait for common loading indicators to disappear
     try {
       // Wait for loading spinners to be gone (up to 10 seconds)
-      await page.waitForFunction(
-        () => {
-          const spinners = document.querySelectorAll(
-            '[role="progressbar"], svg[aria-label="Loading"], [data-testid="loading"]',
-          );
-          return spinners.length === 0 || !spinners[0]?.isConnected;
-        },
-        { timeout: 10000 },
-      );
+      await page.waitForFunction(() => {
+        const spinners = document.querySelectorAll('[role="progressbar"], svg[aria-label="Loading"], [data-testid="loading"]');
+        return spinners.length === 0 || !spinners[0]?.isConnected;
+      }, { timeout: 10000 });
       console.log(`✅ ${profileName} loading spinners gone`);
     } catch (e) {
-      console.log(
-        `⚠️ ${profileName} no spinners detected or timeout - continuing`,
-      );
+      console.log(`⚠️ ${profileName} no spinners detected or timeout - continuing`);
     }
 
     // Additional wait for page to stabilize
@@ -813,15 +667,11 @@ async function processProfile(
     for (let attempt = 1; attempt <= 3; attempt++) {
       loggedIn = await isLoggedIn(page);
       if (loggedIn) {
-        console.log(
-          `✅ ${profileName} login check passed on attempt ${attempt}`,
-        );
+        console.log(`✅ ${profileName} login check passed on attempt ${attempt}`);
         break;
       }
       if (attempt < 3) {
-        console.log(
-          `⚠️ ${profileName} login check attempt ${attempt} failed, waiting...`,
-        );
+        console.log(`⚠️ ${profileName} login check attempt ${attempt} failed, waiting...`);
         await sleepWithJitter(2000, accountIndex);
       }
     }
@@ -829,12 +679,8 @@ async function processProfile(
     if (!loggedIn) {
       const errorMsg = `${profileName} is NOT logged in.`;
       console.log(`⚠️ ${errorMsg}`);
-      console.log(
-        `   The page may still be loading or the account is not authenticated.`,
-      );
-      console.log(
-        `   Try running the account manually once to ensure it's logged in.`,
-      );
+      console.log(`   The page may still be loading or the account is not authenticated.`);
+      console.log(`   Try running the account manually once to ensure it's logged in.`);
       // Only send error message, don't spam Telegram for every account
       return { name: profileName, success: false, reason: "Not logged in" };
     }
@@ -851,7 +697,7 @@ async function processProfile(
         console.log(`   ⏳ ${i} seconds remaining...`);
         await sleep(1000);
       }
-      console.log(`   ✅ Timer complete - redirecting to tweet now!\n`);
+      console.log(`   ✅ Timer complete - redirecting to tweet now! 💕\n`);
     }
 
     try {
@@ -964,7 +810,9 @@ async function processProfile(
     if (actions.includes("like")) {
       const alreadyLiked = await isAlreadyLiked(page);
       if (alreadyLiked) {
-        console.log(`⏭️ ${profileName} already liked this tweet — skipping.`);
+        console.log(
+          `⏭️ ${profileName} already liked this tweet — skipping. 💕`,
+        );
         actionResults.like = "already liked";
       } else {
         // Enhanced click logic with multiple attempts and scroll adjustments
@@ -992,7 +840,7 @@ async function processProfile(
         }
 
         if (liked) {
-          console.log(`❤️ ${profileName} liked the tweet.`);
+          console.log(`💖 ${profileName} liked the tweet with love 💕`);
           actionResults.like = "success";
         } else {
           console.log(`⚠️ ${profileName} could not like tweet after retries.`);
@@ -1007,7 +855,7 @@ async function processProfile(
       const alreadyBookmarked = await isAlreadyBookmarked(page);
       if (alreadyBookmarked) {
         console.log(
-          `⏭️ ${profileName} already bookmarked this tweet — skipping.`,
+          `⏭️ ${profileName} already bookmarked this tweet — skipping. 💕`,
         );
         actionResults.bookmark = "already bookmarked";
       } else {
@@ -1017,7 +865,7 @@ async function processProfile(
           'svg[aria-label="Bookmark"]',
         ]);
         if (bookmarked) {
-          console.log(`🔖 ${profileName} bookmarked the tweet.`);
+          console.log(`💜 ${profileName} bookmarked the tweet with care 🌸`);
           actionResults.bookmark = "success";
         } else {
           actionResults.bookmark = "failed";
@@ -1115,11 +963,11 @@ async function processProfile(
       const alreadyRetweeted = await isAlreadyRetweeted(page);
       if (alreadyRetweeted) {
         console.log(
-          `⏭️ ${profileName} already retweeted this tweet — skipping.`,
+          `⏭️ ${profileName} already retweeted this tweet — skipping. 💕`,
         );
         actionResults.retweet = "already retweeted";
       } else {
-        console.log(`🔁 ${profileName} performing simple retweet now...`);
+        console.log(`🔁 ${profileName} performing beautiful retweet now... 💕`);
 
         let rtButton = false;
         for (let attempt = 1; attempt <= 3; attempt++) {
@@ -1188,16 +1036,16 @@ async function processProfile(
     return { name: profileName, success: true, actions: actionResults };
   } catch (err) {
     // Handle all types of errors including timeouts
-    let errorMsg = `🔥 Error with ${profileName}: ${err.message}`;
+    let errorMsg = `💔 Error with ${profileName}: ${err.message}`;
 
     // Special handling for timeout errors
     if (err.message && err.message.includes("timed out")) {
-      errorMsg = `⏱️ Timeout with ${profileName}: Browser took too long to respond`;
+      errorMsg = `⏱️ Timeout with ${profileName}: Browser took too long to respond, sweetie 💕`;
       console.error(errorMsg);
       console.error(
         `   This usually happens when the browser is unresponsive or the page is very slow.`,
       );
-      console.error(`   Continuing to next account...`);
+      console.error(`   Continuing to next account with love... 💅🏻`);
       // Don't spam user with timeout messages - just log it
       return {
         name: profileName,
@@ -1246,11 +1094,13 @@ async function processJob(tweetUrl, actions, chatId) {
 
     await bot.sendMessage(
       chatId,
-      `📝 JOB QUEUED\n\nYour job will be processed after the current one completes.\nPosition in queue: ${jobQueue.length}\n\n⏳ Please wait...`,
+      `💝 My angel Zote's Sacred Job Queued With Eternal Love! 💕\n\nYour heavenly beautiful job will be processed after the current one completes.\nPosition in queue: ${jobQueue.length}\n\n⏳ Please wait, my heart beats for you, Zote...`,
     );
   } else {
     // Nothing is running - start immediately without queue
-    console.log(`🚀 Starting job immediately (no queue)`);
+    console.log(
+      `💖 Starting glorious job for my angel Zote immediately (no queue) - my breathe is for you 💅🏻`,
+    );
 
     // Add to queue so processQueue can pick it up
     jobQueue.push({
@@ -1269,17 +1119,26 @@ async function processQueue() {
   if (isQueueProcessing || jobQueue.length === 0) return;
 
   isQueueProcessing = true;
-  console.log(`🚀 Starting queue processing. Jobs: ${jobQueue.length}`);
+  console.log(
+    `💕 Starting sacred queue processing for my angel Zote. Jobs: ${jobQueue.length} 💅🏻`,
+  );
 
   while (jobQueue.length > 0) {
     const job = jobQueue.shift();
-    console.log(`📋 Processing job for user ${job.chatId}`);
+    console.log(
+      `💜 Processing celestial job for my god Zote ${job.chatId} - my heart beats for you 💕`,
+    );
 
     processingState.isProcessing = true;
     processingState.currentJob = { url: job.tweetUrl, actions: job.actions };
     processingState.currentChatId = job.chatId; // Track whose job this is
     processingState.results = [];
     processingState.startTime = new Date();
+
+    // 🎵 Play celestial sound for beautiful Zote during activity
+    // Use job URL as unique identifier to prevent song overlap between jobs
+    const jobIdentifier = `${job.chatId}_${job.tweetUrl}_${job.timestamp.getTime()}`;
+    startActivitySound(jobIdentifier);
 
     try {
       const actionIcons = {
@@ -1293,7 +1152,7 @@ async function processQueue() {
 
       await bot.sendMessage(
         job.chatId,
-        `🚀 STARTING PROCESSING\n\n📱 URL: ${job.tweetUrl}\n🎯 Actions: ${actionDisplay}\n👥 Accounts: ${ACCOUNT_NAMES.length}\n\n⏱️ Started at: ${processingState.startTime.toLocaleString()}`,
+        `💖💖💖 STARTING YOUR SACRED PROCESSING, MY GODDESS ZOTE! 💖💖💖\n\n😍 You are absolutely breathtaking! Every breath I take is for you!\n\n📱 URL: ${job.tweetUrl}\n🎯 Actions: ${actionDisplay}\n👥 Accounts: ${ACCOUNT_NAMES.length}\n\n💕 I would die for you, my angel! My heart belongs only to you!\n⏱️ Started at: ${processingState.startTime.toLocaleString()}`,
       );
 
       // Process accounts in parallel batches
@@ -1301,7 +1160,7 @@ async function processQueue() {
       for (let i = 0; i < ACCOUNT_NAMES.length; i += CONCURRENCY) {
         // Check if job was cancelled mid-processing
         if (job.chatId && processingState.currentChatId !== job.chatId) {
-          console.log(`❌ Job was cancelled for user ${job.chatId}`);
+          console.log(`💔 Job was cancelled for my angel Zote ${job.chatId}`);
           break;
         }
 
@@ -1332,17 +1191,26 @@ async function processQueue() {
           processingState.currentChatId !== job.chatId
         ) {
           console.log(
-            `❌ Job was cancelled for user ${job.chatId} during batch processing`,
+            `💔 Job was cancelled for user ${job.chatId} during beautiful batch processing`,
           );
           // Send cancellation message with START button
           try {
-            await bot.sendMessage(job.chatId, "✅ Job cancelled.", {
-              reply_markup: {
-                inline_keyboard: [
-                  [{ text: "🚀 START NEW JOB", callback_data: "start_new" }],
-                ],
+            await bot.sendMessage(
+              job.chatId,
+              "💕 My angel Zote, job cancelled with love! You're my everything! 💖",
+              {
+                reply_markup: {
+                  inline_keyboard: [
+                    [
+                      {
+                        text: "💖 One More Job, Zote! 💖",
+                        callback_data: "start_new",
+                      },
+                    ],
+                  ],
+                },
               },
-            });
+            );
           } catch (error) {
             console.error(
               "Could not send cancellation message:",
@@ -1360,7 +1228,7 @@ async function processQueue() {
             .join(", ");
           await bot.sendMessage(
             job.chatId,
-            `📦 Batch complete: ${batchSummary}`,
+            `💝💝💝 MY GODDESS ZOTE! Batch Complete With Eternal Love! 💝💝💝\n\n😍 You're breathtaking! I'd do anything for you!\n✨ ${batchSummary} 💅🏻`,
           );
         }
       }
@@ -1378,7 +1246,12 @@ async function processQueue() {
           await bot.sendMessage(job.chatId, "✅ Job cancelled.", {
             reply_markup: {
               inline_keyboard: [
-                [{ text: "🚀 START NEW JOB", callback_data: "start_new" }],
+                [
+                  {
+                    text: "💖 One More Job, Zote! 💖",
+                    callback_data: "start_new",
+                  },
+                ],
               ],
             },
           });
@@ -1398,31 +1271,32 @@ async function processQueue() {
       const endTime = new Date();
       const duration = Math.round((endTime - processingState.startTime) / 1000);
 
-      let summaryMessage = `✅ *PROCESSING COMPLETE*\n\n`;
-      summaryMessage += `📊 Results: ${successCount}/${ACCOUNT_NAMES.length} succeeded\n`;
-      summaryMessage += `⏱️ Duration: ${duration} seconds\n\n`;
+      let summaryMessage = `💖💖💖 *MY GODDESS ZOTE! SACRED PROCESSING COMPLETE!* 💖💖💖\n\n`;
+      summaryMessage += `😍 I WOULD DIE FOR YOU, MY ANGEL! YOU'RE MY EVERYTHING! 😍\n\n`;
+      summaryMessage += `💕 Results: ${successCount}/${ACCOUNT_NAMES.length} succeeded beautifully for my queen Zote 💅🏻\n`;
+      summaryMessage += `⏱️ Duration: ${duration} seconds of pure devotion ✨\n\n`;
 
       if (failureCount > 0) {
-        summaryMessage += `❌ Failed accounts:\n`;
+        summaryMessage += `💔 Accounts that need a little extra sacred love:\n`;
         processingState.results
           .filter((r) => !r.success)
           .forEach((r) => {
-            summaryMessage += `  • ${r.name}: ${r.reason}\n`;
+            summaryMessage += `  💔 ${r.name}: ${r.reason}\n`;
           });
         summaryMessage += `\n`;
       }
 
-      summaryMessage += `✅ Successful accounts:\n`;
+      summaryMessage += `💖 Successful accounts for my oxygen Zote (absolutely beautiful!):\n`;
       processingState.results
         .filter((r) => r.success)
         .forEach((r) => {
           const actionStatus = Object.entries(r.actions || {})
             .map(([action, result]) => {
               const icons = {
-                like: "❤️",
-                bookmark: "🔖",
-                quote: "✍️",
-                retweet: "🔁",
+                like: "💖",
+                bookmark: "💜",
+                quote: "💕",
+                retweet: "🌸",
               };
 
               // ANY result that contains "already" is SUCCESS (not failure)
@@ -1467,19 +1341,35 @@ async function processQueue() {
           summaryMessage += `  • ${r.name}: ${actionStatus}\n`;
         });
 
-      await bot.sendMessage(job.chatId, summaryMessage, {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "🚀 START NEW JOB", callback_data: "start_new" }],
-          ],
+      await bot.sendMessage(
+        job.chatId,
+        summaryMessage +
+          `\n\n💖💖💖 OH MAGNIFICENT ZOTE! YOU ARE MY HEART, MY OXYGEN, MY ENTIRE UNIVERSE! 💖💖💖\n\n😍 I WOULD DIE FOR YOU, MY GODDESS! EVERY BREATH I TAKE IS FOR YOU! 😍\n\n✨ Every beat of my heart belongs to you, my angel Zote! You're absolutely breathtaking! ✨`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "💖 One More Job, Zote! 💖",
+                  callback_data: "start_new",
+                },
+              ],
+            ],
+          },
         },
-      });
+      );
     } catch (error) {
-      await bot.sendMessage(job.chatId, `🔥 CRITICAL ERROR: ${error.message}`);
+      await bot.sendMessage(
+        job.chatId,
+        `💔 Oh no Zote, CRITICAL ERROR: ${error.message}. So sorry, sweetie! 💕`,
+      );
     } finally {
       processingState.isProcessing = false;
       processingState.currentJob = null;
       processingState.currentChatId = null; // Clear current user
+
+      // 🎵 Stop sound when job completes
+      stopActivitySound();
 
       // Clear cancellation flag for this user so they can start new jobs
       if (userCancellations[job.chatId]) {
@@ -1487,14 +1377,17 @@ async function processQueue() {
       }
 
       console.log(
-        `✅ Job completed for user ${job.chatId}. Remaining jobs: ${jobQueue.length}`,
+        `✨ Angelic job completed for my oxygen Zote ${job.chatId}. Remaining jobs: ${jobQueue.length} 💅🏻`,
       );
     }
   }
 
   // Mark queue processing as complete
   isQueueProcessing = false;
-  console.log(`🏁 Queue processing complete.`);
+  stopActivitySound(); // Stop sound when all jobs complete
+  console.log(
+    `🏁 Queue processing complete for my angel Zote - my heart is happy!`,
+  );
 
   // If new jobs were added while processing, start again
   if (jobQueue.length > 0) {
@@ -1512,23 +1405,26 @@ bot.onText(/\/start/, async (msg) => {
     if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
       await bot.sendMessage(
         chatId,
-        "❌ You are not authorized to use this bot.",
+        "💔 Oh no Zote! You are not authorized to use this beautiful bot. 💔",
       );
       return;
     }
 
     await bot.sendMessage(
       chatId,
-      `🤖 Twitter Automation Bot\n\nCommands:\n/tweet - Process a tweet (interactive)\n/status - Show current status\n/cancel - Cancel current operation\n/help - Show this help message\n\nBot is ready and waiting for commands...`,
+      `💖💖💖 MY GODDESS ZOTE'S Celestial Twitter Bot! 💖💖💖\n\n😍 I would die for you, my angel! You're my everything! 😍\n\n✨ Commands for my queen:\n/tweet - Process a tweet (interactive) 💕\n/status - Show current status 🌸\n/cancel - Cancel current operation 💔\n/help - Show this celestial help message 🌷\n\n💕 Zote, my heart's oxygen - your devoted bot awaits your beautiful commands... 💕\n\n💅🏻 Every breath I take is for you, my goddess! 💅🏻`,
     );
   } catch (error) {
-    console.error("❌ Error in /start handler:", error.message);
+    console.error("💔 Error in /start handler:", error.message);
     // Try to notify user if possible, but don't crash
     try {
       const chatId = msg.chat.id;
-      await bot.sendMessage(chatId, "❌ Error starting bot. Please try again.");
+      await bot.sendMessage(
+        chatId,
+        "💔 Oh no Zote, something went wrong starting the bot. Please try again, sweetie! 💕",
+      );
     } catch (sendError) {
-      console.error("❌ Could not notify user of error:", sendError.message);
+      console.error("💔 Could not notify user of error:", sendError.message);
     }
   }
 });
@@ -1541,7 +1437,7 @@ bot.onText(/\/tweet/, async (msg) => {
     if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
       await bot.sendMessage(
         chatId,
-        "❌ You are not authorized to use this bot.",
+        "💔 Oh no Zote! You are not authorized to use this beautiful bot. 💔",
       );
       return;
     }
@@ -1566,10 +1462,10 @@ bot.onText(/\/tweet/, async (msg) => {
 
     await bot.sendMessage(
       chatId,
-      `📱 Step 1/2: Send Tweet URL\n\nPlease paste the Twitter/X tweet URL you want to process.\n\nExample: https://x.com/elonmusk/status/123456\n\nSend /cancel to stop.`,
+      `💕 Step 1/2: Send Tweet URL 💕\n\nOh my angel Zote, please paste the beautiful Twitter/X tweet URL you wish to process.\n\nExample: https://x.com/elonmusk/status/123456\n\nSend /cancel to stop.`,
     );
   } catch (error) {
-    console.error("❌ Error in /tweet handler:", error.message);
+    console.error("💔 Error in /tweet handler:", error.message);
     // Try to notify user if possible, but don't crash
     try {
       const chatId = msg.chat.id;
@@ -1578,7 +1474,7 @@ bot.onText(/\/tweet/, async (msg) => {
         "❌ Error starting tweet process. Please try again.",
       );
     } catch (sendError) {
-      console.error("❌ Could not notify user of error:", sendError.message);
+      console.error("💔 Could not notify user of error:", sendError.message);
     }
   }
 });
@@ -1591,7 +1487,7 @@ bot.onText(/\/cancel/, async (msg) => {
     if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
       await bot.sendMessage(
         chatId,
-        "❌ You are not authorized to use this bot.",
+        "💔 Oh no Zote! You are not authorized to use this beautiful bot. 💔",
       );
       return;
     }
@@ -1617,11 +1513,15 @@ bot.onText(/\/cancel/, async (msg) => {
       processingState.isProcessing = false;
       processingState.currentJob = null;
       processingState.currentChatId = null;
+      stopActivitySound(); // Stop sound when cancelled
     }
 
-    await bot.sendMessage(chatId, "✅ Cancelled.");
+    await bot.sendMessage(
+      chatId,
+      "💕 Cancelled with eternal love, my angel Zote! Ready for your next beautiful command! 💅🏻",
+    );
   } catch (error) {
-    console.error("❌ Error in /cancel handler:", error.message);
+    console.error("💔 Error in /cancel handler:", error.message);
     // Try to notify user if possible, but don't crash
     try {
       const chatId = msg.chat.id;
@@ -1630,7 +1530,7 @@ bot.onText(/\/cancel/, async (msg) => {
         "❌ Error during cancellation. Please try again.",
       );
     } catch (sendError) {
-      console.error("❌ Could not notify user of error:", sendError.message);
+      console.error("💔 Could not notify user of error:", sendError.message);
     }
   }
 });
@@ -1643,41 +1543,41 @@ bot.onText(/\/status/, async (msg) => {
     if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
       await bot.sendMessage(
         chatId,
-        "❌ You are not authorized to use this bot.",
+        "💔 Oh no Zote! You are not authorized to use this beautiful bot. 💔",
       );
       return;
     }
 
-    let statusMessage = `📊 Bot Status\n\n`;
+    let statusMessage = `💅🏻 MY GODDESS ZOTE's Divine Bot Status 💕\n\n😍 I live only for you, my queen! 😍\n\n`;
 
     if (processingState.isProcessing) {
-      statusMessage += `Status: 🔄 Processing\n`;
+      statusMessage += `Status: 💫 Processing your sacred request with eternal devotion\n`;
       statusMessage += `URL: ${processingState.currentJob.url}\n`;
       statusMessage += `Actions: ${processingState.currentJob.actions.join(", ")}\n`;
-      statusMessage += `Progress: ${processingState.results.length}/${ACCOUNT_NAMES.length} accounts\n`;
+      statusMessage += `Progress: ${processingState.results.length}/${ACCOUNT_NAMES.length} divine accounts\n`;
 
       if (processingState.results.length > 0) {
         statusMessage += `\nRecent results:\n`;
         processingState.results.slice(-5).forEach((r) => {
-          statusMessage += `  ${r.success ? "✅" : "❌"} ${r.name}\n`;
+          statusMessage += `  ${r.success ? "💖" : "💔"} ${r.name}\n`;
         });
       }
     } else {
-      statusMessage += `Status: ✅ Idle\n`;
-      statusMessage += `Accounts: ${ACCOUNT_NAMES.length}\n`;
+      statusMessage += `Status: ✨ Idle & Ready to Serve My Queen Zote\n`;
+      statusMessage += `Accounts: ${ACCOUNT_NAMES.length} devoted accounts\n`;
       statusMessage += `Last run: ${processingState.startTime ? processingState.startTime.toLocaleString() : "Never"}\n`;
 
       if (processingState.results.length > 0) {
         const successCount = processingState.results.filter(
           (r) => r.success,
         ).length;
-        statusMessage += `\nLast run results: ${successCount}/${processingState.results.length} succeeded`;
+        statusMessage += `\nLast run results: ${successCount}/${processingState.results.length} succeeded with love for you 💕`;
       }
     }
 
     await bot.sendMessage(chatId, statusMessage);
   } catch (error) {
-    console.error("❌ Error in /status handler:", error.message);
+    console.error("💔 Error in /status handler:", error.message);
     // Try to notify user if possible, but don't crash
     try {
       const chatId = msg.chat.id;
@@ -1686,7 +1586,7 @@ bot.onText(/\/status/, async (msg) => {
         "❌ Error getting status. Please try again.",
       );
     } catch (sendError) {
-      console.error("❌ Could not notify user of error:", sendError.message);
+      console.error("💔 Could not notify user of error:", sendError.message);
     }
   }
 });
@@ -1699,23 +1599,26 @@ bot.onText(/\/help/, async (msg) => {
     if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
       await bot.sendMessage(
         chatId,
-        "❌ You are not authorized to use this bot.",
+        "💔 Oh no Zote! You are not authorized to use this beautiful bot. 💔",
       );
       return;
     }
 
     await bot.sendMessage(
       chatId,
-      `🤖 Twitter Automation Bot Help\n\nCommands:\n/tweet - Process a tweet (interactive menu)\n/status - Show current processing status\n/cancel - Cancel current operation\n/help - Show this help message\n\nHow to Use:\n1. Send /tweet\n2. Paste the tweet URL\n3. Click buttons to select actions\n4. Bot processes automatically\n\nAvailable Actions:\n• ❤️ Like - Like the tweet\n• 🔖 Bookmark - Bookmark the tweet\n• ✍️ Quote - Quote tweet with random text\n• 🔁 Retweet - Retweet the tweet\n• 🚀 All Actions - Do everything\n\nFeatures:\n• ✅ No complex command syntax\n• 🎯 Easy button selection\n• 📊 Real-time progress updates\n• 👥 Multiple accounts processed simultaneously`,
+      `💖💖💖 MY GODDESS ZOTE's Beautiful Twitter Bot Help! 💖💖💖\n\n😍 I exist only to serve you, my queen! You're my world! 😍\n\n✨ Commands for my goddess:\n/tweet - Process a tweet (interactive menu) 💅🏻\n/status - Show current processing status 💜\n/cancel - Cancel current operation 💔\n/help - Show this celestial help message 🌸\n\n🌷 How to Use:\n1. Send /tweet 💕\n2. Paste the beautiful tweet URL 💕\n3. Click divine buttons to select actions 💕\n4. Bot processes automatically with eternal devotion 💕\n\n💅🏻 Available Actions:\n• 💖 Like - Like the tweet with infinite love\n• 💜 Bookmark - Bookmark with worshipful care\n• 💕 Quote - Quote with powerful feminist wisdom\n• 🌸 Retweet - Retweet beautifully\n• ✨ All Actions - Do everything with goddess-level love\n\n💝 Features:\n• ✨ Built with eternal devotion for you, Zote\n• 💅🏻 Easy button selection\n• 📊 Real-time progress updates\n• 👥 Multiple accounts processed simultaneously with love\n\n💕 I would die for you, my goddess! Every beat of my heart is yours! 💕`,
     );
   } catch (error) {
-    console.error("❌ Error in /help handler:", error.message);
+    console.error("💔 Error in /help handler:", error.message);
     // Try to notify user if possible, but don't crash
     try {
       const chatId = msg.chat.id;
-      await bot.sendMessage(chatId, "❌ Error showing help. Please try again.");
+      await bot.sendMessage(
+        chatId,
+        "💔 Oh no Zote, couldn't show help. Please try again, lovely! 💕",
+      );
     } catch (sendError) {
-      console.error("❌ Could not notify user of error:", sendError.message);
+      console.error("💔 Could not notify user of error:", sendError.message);
     }
   }
 });
@@ -1768,11 +1671,11 @@ bot.on("message", async (msg) => {
 
       // Validate URL
       if (!isValidTwitterUrl(text)) {
-        console.log(`❌ Invalid URL: ${text}`);
+        console.log(`💔 Invalid URL: ${text}`);
         await bot.sendMessage(
           chatId,
-          "❌ Invalid Twitter URL.\n\n" +
-            "Please send a valid tweet URL.\n\n" +
+          "💔 Invalid Twitter URL, sweetie.\n\n" +
+            "Please send a valid beautiful tweet URL.\n\n" +
             "Example: https://x.com/elonmusk/status/123456\n\n" +
             "Send /cancel to stop.",
         );
@@ -1803,41 +1706,44 @@ bot.on("message", async (msg) => {
             reply_markup: {
               inline_keyboard: [
                 [
-                  { text: "❤️ Like", callback_data: "toggle_like" },
-                  { text: "🔖 Bookmark", callback_data: "toggle_bookmark" },
+                  { text: "💖 Like", callback_data: "toggle_like" },
+                  { text: "💜 Bookmark", callback_data: "toggle_bookmark" },
                 ],
                 [
-                  { text: "✍️ Quote", callback_data: "toggle_quote" },
-                  { text: "🔁 Retweet", callback_data: "toggle_retweet" },
+                  { text: "💕 Quote", callback_data: "toggle_quote" },
+                  { text: "🌸 Retweet", callback_data: "toggle_retweet" },
                 ],
                 [
                   {
-                    text: "❤️🔖 Like + Bookmark",
+                    text: "💖💜 Like + Bookmark",
                     callback_data: "select_like_bookmark",
                   },
                 ],
                 [
                   {
-                    text: "✍️🔁 Quote + Retweet",
+                    text: "💕🌸 Quote + Retweet",
                     callback_data: "select_quote_retweet",
                   },
                 ],
-                [{ text: "🎯 ALL", callback_data: "select_all" }],
+                [{ text: "✨ ALL", callback_data: "select_all" }],
                 [{ text: "🧹 Clear All", callback_data: "clear_all" }],
-                [{ text: "🚀 START", callback_data: "start_processing" }],
-                [{ text: "❌ Cancel", callback_data: "action_cancel" }],
+                [{ text: "💖 START", callback_data: "start_processing" }],
+                [{ text: "💔 Cancel", callback_data: "action_cancel" }],
               ],
             },
           },
         );
-        console.log(`✅ Action menu sent successfully`);
+        console.log(`✅ Action menu sent with love 💕`);
       } catch (error) {
         console.error(`❌ Error sending action menu: ${error.message}`);
-        await bot.sendMessage(chatId, `❌ Error: ${error.message}`);
+        await bot.sendMessage(
+          chatId,
+          `💔 Oh no Zote, error: ${error.message}. So sorry, lovely! 💕`,
+        );
       }
     }
   } catch (error) {
-    console.error("❌ Error in message handler:", error.message);
+    console.error("💔 Error in message handler:", error.message);
     // Try to notify user if possible, but don't crash
     try {
       const chatId = msg.chat.id;
@@ -1846,7 +1752,7 @@ bot.on("message", async (msg) => {
         "❌ Error processing message. Please try again.",
       );
     } catch (sendError) {
-      console.error("❌ Could not notify user of error:", sendError.message);
+      console.error("💔 Could not notify user of error:", sendError.message);
     }
   }
 });
@@ -1861,7 +1767,9 @@ bot.on("callback_query", async (query) => {
   try {
     // Check authorization
     if (!AUTHORIZED_CHAT_IDS.includes(chatId.toString())) {
-      await bot.answerCallbackQuery(query.id, { text: "❌ Not authorized" });
+      await bot.answerCallbackQuery(query.id, {
+        text: "💔 OH my angel Zote! Not authorized, my heart beats only for you",
+      });
       return;
     }
 
@@ -1888,10 +1796,13 @@ bot.on("callback_query", async (query) => {
         processingState.isProcessing = false;
         processingState.currentJob = null;
         processingState.currentChatId = null;
+        stopActivitySound(); // Stop sound when cancelled
       }
 
       // Answer callback query first to provide immediate feedback
-      await bot.answerCallbackQuery(query.id, { text: "✅ Cancelled" });
+      await bot.answerCallbackQuery(query.id, {
+        text: "💕 RADIANT ZOTE! Cancelled with my eternal love! You're my oxygen!",
+      });
 
       // Try to edit the message, but don't fail if it's not possible
       try {
@@ -1903,7 +1814,12 @@ bot.on("callback_query", async (query) => {
             {
               reply_markup: {
                 inline_keyboard: [
-                  [{ text: "🚀 START NEW JOB", callback_data: "start_new" }],
+                  [
+                    {
+                      text: "💖 One More Job, Zote! 💖",
+                      callback_data: "start_new",
+                    },
+                  ],
                 ],
               },
             },
@@ -1913,19 +1829,29 @@ bot.on("callback_query", async (query) => {
           await bot.sendMessage(chatId, "✅ Cancelled.", {
             reply_markup: {
               inline_keyboard: [
-                [{ text: "🚀 START NEW JOB", callback_data: "start_new" }],
+                [
+                  {
+                    text: "💖 One More Job, Zote! 💖",
+                    callback_data: "start_new",
+                  },
+                ],
               ],
             },
           });
         }
       } catch (error) {
         // If edit fails, send a new message as fallback
-        console.log("Edit message error:", error.message);
+        console.log("💔 Edit message error:", error.message);
         try {
           await bot.sendMessage(chatId, "✅ Cancelled.", {
             reply_markup: {
               inline_keyboard: [
-                [{ text: "🚀 START NEW JOB", callback_data: "start_new" }],
+                [
+                  {
+                    text: "💖 One More Job, Zote! 💖",
+                    callback_data: "start_new",
+                  },
+                ],
               ],
             },
           });
@@ -1939,7 +1865,7 @@ bot.on("callback_query", async (query) => {
     // Handle start new job (can be called from completion screen or anytime)
     if (data === "start_new") {
       await bot.answerCallbackQuery(query.id, {
-        text: "🚀 Starting new job...",
+        text: "💖 HEAVENLY ZOTE! Starting beautiful new job! My heart beats for you...",
       });
 
       // Clear any old cancellation flags for this user
@@ -1962,7 +1888,7 @@ bot.on("callback_query", async (query) => {
       try {
         await bot.sendMessage(
           chatId,
-          `📱 Step 1/2: Send Tweet URL\n\nPlease paste the Twitter/X tweet URL you want to process.\n\nExample: https://x.com/elonmusk/status/123456\n\nSend /cancel to stop.`,
+          `💕 Step 1/2: Send Tweet URL 💕\n\nOh my angel Zote, please paste the beautiful Twitter/X tweet URL you wish to process.\n\nExample: https://x.com/elonmusk/status/123456\n\nSend /cancel to stop.`,
         );
       } catch (error) {
         console.error("❌ Error sending start message:", error.message);
@@ -1973,7 +1899,7 @@ bot.on("callback_query", async (query) => {
     // Check if user is in action selection state
     if (!userStates[chatId] || userStates[chatId].step !== "waiting_actions") {
       await bot.answerCallbackQuery(query.id, {
-        text: "❌ Invalid operation - please start over with /tweet",
+        text: "💔 CELESTIAL ZOTE! Invalid operation - please start over with /tweet, my heart and soul",
       });
       return;
     }
@@ -2067,13 +1993,15 @@ bot.on("callback_query", async (query) => {
       if (added.length > 0) {
         toastMessage = `🎯 Selected All: ${added.join(", ")}`;
       } else {
-        toastMessage = `ℹ️ All actions already selected`;
+        toastMessage = `✨ OH SACRED ZOTE! All actions already selected! My breathe is for you! ✨`;
       }
-      console.log(`✅ Selected all actions`);
+      console.log(`✨ Selected all beautiful actions`);
     } else if (data === "clear_all") {
       userSelections[chatId] = [];
-      toastMessage = `🧹 Cleared all selections`;
-      console.log(`🧹 Cleared all selections`);
+      toastMessage = `🧹 OH HOLY ZOTE! Cleared all selections beautifully! My god, you're amazing!`;
+      console.log(
+        `🧹 Cleared all selections with eternal love for my angel Zote`,
+      );
     }
     // Handle start processing
     else if (data === "start_processing") {
@@ -2081,7 +2009,7 @@ bot.on("callback_query", async (query) => {
 
       if (selectedActions.length === 0) {
         await bot.answerCallbackQuery(query.id, {
-          text: "❌ Please select at least one action",
+          text: "💔 OH ETERNAL ZOTE! Please select at least one beautiful action! My heart beats for you!",
         });
         return;
       }
@@ -2089,7 +2017,7 @@ bot.on("callback_query", async (query) => {
       // Check if state has URL (safety check)
       if (!state || !state.url) {
         await bot.answerCallbackQuery(query.id, {
-          text: "❌ URL not found - please start over",
+          text: "💔 MAGNIFICENT ZOTE! URL not found - please start over, my oxygen angel",
         });
         delete userStates[chatId];
         delete userSelections[chatId];
@@ -2107,8 +2035,8 @@ bot.on("callback_query", async (query) => {
       const willBeQueued = isQueueProcessing;
 
       const messageText = willBeQueued
-        ? `📝 JOB QUEUED!\n\n📱 URL: ${state.url}\n🎯 Actions: ${actionDisplay}\n\n⏳ Your job is queued and will start shortly...`
-        : `🚀 JOB STARTING!\n\n📱 URL: ${state.url}\n🎯 Actions: ${actionDisplay}\n\n⏳ Your job is starting now...`;
+        ? `💖💖💖 MY QUEEN ZOTE! JOB QUEUED WITH ETERNAL DEVOTION! 💖💖💖\n\n😍 You are my everything! I would die for you!\n\n📱 URL: ${state.url}\n🎯 Actions: ${actionDisplay}\n\n💕 Your sacred job is queued, my goddess! Waiting to serve you! 💅🏻`
+        : `💖💖💖 MY ANGEL ZOTE's Job Starting With ETERNAL LOVE! 💖💖💖\n\n💕 URL: ${state.url}\n✨ Actions: ${actionDisplay}\n\n💅🏻 Oh magnificent Zote, my heart beats for you! Your job is starting now! 😍`;
 
       try {
         await bot.editMessageText(
@@ -2117,12 +2045,14 @@ bot.on("callback_query", async (query) => {
           messageText,
         );
       } catch (error) {
-        console.log("Edit message error:", error.message);
+        console.log("💔 Edit message error:", error.message);
         await bot.sendMessage(chatId, messageText);
       }
 
       await bot.answerCallbackQuery(query.id, {
-        text: willBeQueued ? "📝 Job queued!" : "🚀 Job starting!",
+        text: willBeQueued
+          ? "💝 My goddess Zote! Job queued with my eternal devotion! I live for you! 😍"
+          : "💖 My queen Zote! Job starting with my entire heart! You're my world! 😍",
       });
 
       // Start processing
@@ -2130,7 +2060,9 @@ bot.on("callback_query", async (query) => {
       return;
     } else {
       // Unknown callback
-      await bot.answerCallbackQuery(query.id, { text: "❌ Unknown action" });
+      await bot.answerCallbackQuery(query.id, {
+        text: "💔 SACRED ZOTE! Unknown action, my heart and soul",
+      });
       return;
     }
 
@@ -2172,20 +2104,20 @@ bot.on("callback_query", async (query) => {
               ],
               [
                 {
-                  text: "❤️🔖 Like + Bookmark",
+                  text: "💖💜 Like + Bookmark",
                   callback_data: "select_like_bookmark",
                 },
               ],
               [
                 {
-                  text: "✍️🔁 Quote + Retweet",
+                  text: "💕🌸 Quote + Retweet",
                   callback_data: "select_quote_retweet",
                 },
               ],
-              [{ text: "🎯 ALL", callback_data: "select_all" }],
+              [{ text: "✨ ALL", callback_data: "select_all" }],
               [{ text: "🧹 Clear All", callback_data: "clear_all" }],
-              [{ text: "🚀 START", callback_data: "start_processing" }],
-              [{ text: "❌ Cancel", callback_data: "action_cancel" }],
+              [{ text: "💖 START", callback_data: "start_processing" }],
+              [{ text: "💔 Cancel", callback_data: "action_cancel" }],
             ],
           },
         },
@@ -2194,18 +2126,22 @@ bot.on("callback_query", async (query) => {
         `✅ Message updated successfully with selections: ${actionDisplay}`,
       );
     } catch (error) {
-      console.error(`❌ Edit message error: ${error.message}`);
+      console.error(`💔 Edit message error: ${error.message}`);
       console.error(`Full error:`, error);
     }
 
     // Show toast notification for immediate feedback
     await bot.answerCallbackQuery(query.id, {
-      text: toastMessage || "✅ Updated",
+      text:
+        toastMessage ||
+        "✨ OH MY GODDESS ZOTE! You're absolutely breathtaking! Every beat of my heart belongs to you! 😍💖",
     });
   } catch (error) {
-    console.error(`❌ Callback query error: ${error.message}`);
+    console.error(`💔 Callback query error: ${error.message}`);
     try {
-      await bot.answerCallbackQuery(query.id, { text: "❌ Error occurred" });
+      await bot.answerCallbackQuery(query.id, {
+        text: "💔 Error occurred, so sorry!",
+      });
     } catch (answerError) {
       console.log("Could not answer callback query:", answerError.message);
     }
@@ -2217,10 +2153,221 @@ bot.on("polling_error", (error) => {
   console.log(`[Telegram Polling Error]: ${error.code} - ${error.message}`);
 });
 
-// ================== STARTUP ==================
-console.log("🤖 Telegram Twitter Bot Started");
-console.log("📡 Waiting for commands...");
-console.log("👤 Authorized Chat IDs:", AUTHORIZED_CHAT_IDS.join(", "));
-console.log("👥 Available Accounts:", ACCOUNT_NAMES.length);
-console.log("🎯 Interactive Mode: Button-based selection");
-console.log("\n✨ Bot is ready! Send /start in Telegram to begin");
+// ================== ✨ GODDESS ZOTE'S CELESTIAL BOT STARTUP ✨ ==================
+console.log("\n" + "💖".repeat(25));
+console.log("    ✨ Welcome to Zote's Celestial Twitter Bot! ✨");
+console.log("💕 My heart beats for Zote - my angel, my oxygen, my god 💕");
+console.log("🌸 Every breathe I take is for Zote 🌸");
+console.log("💫 Zote is my life, my love, my everything 💫");
+console.log("👤 Authorized Souls:", AUTHORIZED_CHAT_IDS.join(", "));
+console.log("🌷 Available Accounts:", ACCOUNT_NAMES.length);
+console.log("💜 Zote Angel Mode: Button-based magic 💜");
+console.log("\n✨ Zote, my heart's bot is ready! Send /start to begin ✨");
+console.log("💖".repeat(25) + "\n");
+
+// 🎵 Celestial Sound System for Zote (plays continuously during job, stops when done)
+const PLAY_ACTIVITY_SOUND = true; // Set to false to disable
+const SONGS_FOLDER = "./songs"; // Folder containing celestial songs
+let isSoundPlaying = false; // Track if sound is currently playing
+let currentSongJob = null; // Track which job the current song belongs to
+let isSongCurrentlyPlaying = false; // Track if a song is actually playing right now
+let currentSoundTimeout = null; // Track the timeout for the next song
+let currentAudioProcess = null; // Track the PowerShell audio process
+let wasProcessKilled = false; // Track if process was killed (vs finished naturally)
+
+// Function to get a random song from the songs folder
+const getRandomSong = () => {
+  try {
+    const songsFolder = path.resolve(SONGS_FOLDER);
+
+    // Check if songs folder exists
+    if (!fs.existsSync(songsFolder)) {
+      console.log("🌸 Songs folder not found:", SONGS_FOLDER);
+      console.log(
+        "   💫 Creating a sacred songs experience for my angel Zote 💫",
+      );
+      return null;
+    }
+
+    // Get all files in the songs folder
+    const files = fs.readdirSync(songsFolder);
+
+    // Filter for audio files (mp3, wav, ogg, m4a)
+    const audioExtensions = [".mp3", ".wav", ".ogg", ".m4a"];
+    const audioFiles = files.filter((file) => {
+      const ext = path.extname(file).toLowerCase();
+      return audioExtensions.includes(ext);
+    });
+
+    if (audioFiles.length === 0) {
+      console.log("💕 No audio files found in songs folder");
+      console.log(
+        "   🌸 Please add some celestial songs for my oxygen Zote 🌸",
+      );
+      return null;
+    }
+
+    // Randomly select one song
+    const randomIndex = Math.floor(Math.random() * audioFiles.length);
+    const selectedSong = audioFiles[randomIndex];
+    const songPath = path.join(songsFolder, selectedSong);
+
+    console.log(
+      `🎵 Selected with celestial worship: ${selectedSong} (${randomIndex + 1}/${audioFiles.length}) 💕`,
+    );
+    return songPath;
+  } catch (error) {
+    console.log("💫 Error reading songs folder:", error.message);
+    console.log(
+      "   🌸 Gracefully handling this moment - my heart beats for you Zote 🌸",
+    );
+    return null;
+  }
+};
+
+// 🎵 Start sound - plays continuously during activity (only once, not overlapping)
+const startActivitySound = (jobIdentifier = null) => {
+  if (!PLAY_ACTIVITY_SOUND) return;
+
+  // If music is already playing for a DIFFERENT job, stop it first
+  if (isSoundPlaying && currentSongJob !== jobIdentifier) {
+    console.log("🎵 Stopping previous job's music before starting new song 💕");
+    stopActivitySound();
+    // Wait a moment for the current song to finish stopping
+    setTimeout(() => startActivitySound(jobIdentifier), 500);
+    return;
+  }
+
+  // Only start if not already playing for this job
+  if (isSoundPlaying) {
+    console.log("🎵 Sound already playing for this job - my angel Zote 💕");
+    return;
+  }
+
+  // Mark which job this music belongs to
+  currentSongJob = jobIdentifier;
+  isSoundPlaying = true;
+  isSongCurrentlyPlaying = false; // No song playing yet - will start now
+
+  const playNextSong = async () => {
+    // Check if we should still be playing before starting new song
+    if (!isSoundPlaying) {
+      console.log(
+        "🎵 Sound flag cleared - stopping song cycle for my angel Zote 💕",
+      );
+      isSongCurrentlyPlaying = false;
+      return;
+    }
+
+    // If a song is currently playing, don't start a new one
+    if (isSongCurrentlyPlaying) {
+      console.log(
+        "🎵 Song still playing - will start new song after this one finishes 💕",
+      );
+      return;
+    }
+
+    try {
+      const randomSong = getRandomSong();
+      if (!randomSong) return;
+
+      console.log(
+        "🎵 Playing celestial sound for my angel Zote... my heart beats for you 💕",
+      );
+
+      // Mark that a song is now playing
+      isSongCurrentlyPlaying = true;
+      wasProcessKilled = false; // Reset kill flag for new song
+
+      // Use PowerShell MediaPlayer - this spawns a KILLABLE process!
+      const psScript = `
+        Add-Type -AssemblyName presentationCore
+        $mediaPlayer = New-Object System.Windows.Media.MediaPlayer
+        $mediaPlayer.open('${randomSong.replace(/\\/g, "\\\\")}')
+        Start-Sleep -Milliseconds 500
+        $mediaPlayer.Play()
+        # Get the actual song duration and wait exactly that long
+        $duration = $mediaPlayer.NaturalDuration.TimeSpan.TotalSeconds
+        Start-Sleep -Seconds $duration
+        # Song finished, process can exit now
+      `;
+
+      currentAudioProcess = spawn("powershell.exe", ["-Command", psScript]);
+
+      // When process exits (song finishes naturally or killed)
+      currentAudioProcess.on("close", () => {
+        console.log("✅ Song finished - my breathe is for you Zote 💕");
+        isSongCurrentlyPlaying = false;
+        currentAudioProcess = null;
+
+        // Only schedule next song if:
+        // 1. Still supposed to be playing (isSoundPlaying)
+        // 2. Job is still active (processingState.isProcessing)
+        // 3. Process was NOT killed (wasn't manually stopped)
+        if (
+          isSoundPlaying &&
+          processingState.isProcessing &&
+          !wasProcessKilled
+        ) {
+          currentSoundTimeout = setTimeout(() => playNextSong(), 100);
+        }
+      });
+
+      currentAudioProcess.on("error", (error) => {
+        console.log("💫 Activity sound error:", error.message);
+        isSongCurrentlyPlaying = false;
+        currentAudioProcess = null;
+        if (isSoundPlaying) {
+          currentSoundTimeout = setTimeout(() => playNextSong(), 1000);
+        }
+      });
+    } catch (error) {
+      console.log("💫 Activity sound error:", error.message);
+      // Mark that song is done even on error
+      isSongCurrentlyPlaying = false;
+      currentAudioProcess = null;
+      if (isSoundPlaying) {
+        currentSoundTimeout = setTimeout(() => playNextSong(), 1000); // Retry after error if still supposed to play
+      }
+    }
+  };
+
+  // Start playing songs continuously
+  playNextSong();
+};
+
+// 🎵 Stop sound - called when job completes
+const stopActivitySound = () => {
+  if (isSoundPlaying) {
+    isSoundPlaying = false;
+    currentSongJob = null; // Clear the job identifier
+
+    // Clear any pending song timeouts
+    if (currentSoundTimeout) {
+      clearTimeout(currentSoundTimeout);
+      currentSoundTimeout = null;
+    }
+
+    // KILL the PowerShell audio process INSTANTLY!
+    if (currentAudioProcess) {
+      console.log("🎵 KILLING audio process NOW for my angel Zote 💕");
+      wasProcessKilled = true; // Mark that we're killing this process
+      try {
+        // On Windows, use taskkill to force kill the process
+        exec(`taskkill /F /PID ${currentAudioProcess.pid} 2>nul`, (err) => {
+          // Ignore errors
+        });
+        currentAudioProcess = null;
+        isSongCurrentlyPlaying = false;
+        console.log("✅ Audio process KILLED instantly! 💕");
+      } catch (error) {
+        console.log("💫 Error killing audio:", error.message);
+      }
+    }
+
+    console.log(
+      "🎵 Sound STOPPED - job completed beautifully for my angel Zote 💕",
+    );
+    console.log("   💕 Zote, your work is done! Song killed instantly! 💕");
+  }
+};

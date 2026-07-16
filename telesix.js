@@ -8,12 +8,57 @@ import axios from "axios";
 // 🧩 Enable stealth plugin to bypass bot detection
 puppeteer.use(StealthPlugin());
 
+// ================== COMMAND LINE ARGUMENTS ==================
+// Parse command line arguments: node telesix.js --profile "https://x.com/someuser" --repeat 3
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const config = {
+    profile: null,
+    repeat: null,
+    stopUrl: null,
+    maxTweets: null,
+    actions: {
+      like: false,
+      bookmark: false,
+      retweet: false,
+      comment: false,
+    },
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--profile' && args[i + 1]) {
+      config.profile = args[i + 1];
+      i++;
+    } else if (args[i] === '--repeat' && args[i + 1]) {
+      config.repeat = parseInt(args[i + 1]);
+      i++;
+    } else if (args[i] === '--stop-url' && args[i + 1]) {
+      config.stopUrl = args[i + 1];
+      i++;
+    } else if (args[i] === '--max-tweets' && args[i + 1]) {
+      config.maxTweets = parseInt(args[i + 1]);
+      i++;
+    } else if (args[i] === '--like') {
+      config.actions.like = true;
+    } else if (args[i] === '--bookmark') {
+      config.actions.bookmark = true;
+    } else if (args[i] === '--retweet') {
+      config.actions.retweet = true;
+    } else if (args[i] === '--comment') {
+      config.actions.comment = true;
+    }
+  }
+
+  return config;
+}
+
+const cliArgs = parseArgs();
+
 // ================== CONFIG ==================
-const PROFILE_URL = "https://x.com/am1rax"; // Change to the desired profile URL to process tweets from
-const STOP_AT_TWEET_URL =
-  "https://x.com/am1rax/status/2070511474037203135?s=20";
-// Example: "https://x.com/username/status/123456789" - will process tweets ABOVE this one and stop when reaching it
-// Set to null to process all tweets on the profile
+// Use CLI args if provided, otherwise use defaults (matching controller defaults)
+const PROFILE_URL = cliArgs.profile || "https://x.com/am1rax";
+const STOP_AT_TWEET_URL = cliArgs.stopUrl || "https://x.com/am1rax/status/2070511474037203135?s=20";
+const MAX_TWEETS = cliArgs.maxTweets || null;
 
 const BASE_USER_DATA_DIR =
   process.env.BASE_USER_DATA_DIR ||
@@ -42,22 +87,24 @@ const ACCOUNT_NAMES = [
 ];
 const REGISTER_MODE = false; // Set to true to register accounts, false to perform actions
 const HEADLESS = false;
-const REPEAT_COUNT = 2; // Number of times to repeat (0 = run once, >0 = repeat that many times)
+const REPEAT_COUNT = cliArgs.repeat || 2; // Number of times to repeat (0 = run once, >0 = repeat that many times)
+
+// ================== ACTION CONFIG ==================
+// Use CLI args if provided, otherwise use default (like only, matching controller default)
+// If no CLI action flags are provided, default to like only
+const hasActionFlags = Object.values(cliArgs.actions).some(v => v === true);
+const DO_LIKE = hasActionFlags ? cliArgs.actions.like : true;
+const DO_BOOKMARK = hasActionFlags ? cliArgs.actions.bookmark : false;
+const DO_RETWEET = hasActionFlags ? cliArgs.actions.retweet : false;
+const DO_COMMENT = hasActionFlags ? cliArgs.actions.comment : false;
 
 // ================== TELEGRAM CONFIG ==================s
 const TELEGRAM_BOT_TOKEN = "8857592188:AAGxyx4V6t6fJQ9C--Fq4fBZBKIbbCimeLU"; // Your bot token
 const TELEGRAM_CHAT_IDS = ["1991164194", "1956483216"]; // Add multiple chat IDs
 const SEND_TO_TELEGRAM = true; // Set to true to enable Telegram notifications
 
-// ================== ACTION CONFIG ==================
-// ⚠️ SET THESE TO true/false BEFORE RUNNING ⚠️
-const DO_LIKE = true; // Like tweets while scrolling
-const DO_BOOKMARK = false; // Bookmark tweets while scrolling
-const DO_RETWEET = false; // Retweet tweets while scrolling
-const DO_COMMENT = false; // Comment on tweets while scrolling
 const SLEEP_MS = 800; // Base delay between actions (milliseconds)
 const ACCOUNT_STAGGER = 4000; // Stagger delay between accounts (ms)
-const MAX_TWEETS = null; // null = unlimited, or set a number like 50 to stop after that many tweets
 const SCROLL_PAUSE_MS = 2000; // Pause between scrolls to find new tweets (increased for reliability across accounts)
 const TWEETS_BEFORE_VERIFY = null; // Disabled - no verification, just keep scrolling
 const SCROLL_PERCENTAGE = 0.4; // Scroll by 40% of viewport height to be safer and not miss tweets
@@ -1059,12 +1106,29 @@ async function runScript(globalUsernames) {
   while (iteration < maxIterations) {
     iteration++;
     const isRepeatMode = shouldRepeat && maxIterations > 1;
-    console.log(
-      `\n🚀 ITERATION ${iteration}/${maxIterations}${isRepeatMode ? " (REPEAT MODE)" : ""}`,
-    );
-    console.log("=============================================\n");
+    const roundMessage = `\n🚀 ITERATION ${iteration}/${maxIterations}${isRepeatMode ? " (REPEAT MODE)" : ""}\n=============================================\n`;
+    console.log(roundMessage);
 
     const results = await runScript(globalUsernames);
+
+    // Generate simple summary of this round
+    const successful = results.filter((r) => r.success).map((r) => `@${r.name}`);
+    const failed = results.filter((r) => !r.success).map((r) => `@${r.name}`);
+
+    let roundSummary = "";
+
+    if (failed.length > 0) {
+      roundSummary += `❌ ${failed.join(", ")}\n\n`;
+    }
+
+    if (successful.length > 0) {
+      roundSummary += `✅ ${successful.join(", ")}\n\n`;
+    }
+
+    roundSummary += `📊 ${successful.length}/${ACCOUNT_NAMES.length}`;
+
+    // Send simple summary
+    await sendToTelegram(roundSummary);
 
     // Check if we've completed all iterations
     if (iteration >= maxIterations) {

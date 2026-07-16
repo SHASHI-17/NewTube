@@ -10,31 +10,22 @@ puppeteer.use(StealthPlugin());
 // ================== CONFIG ==================
 const TWEET_URL =
   process.env.TWEET_URL ||
-  "https://x.com/xm_muva/status/2073051958789783670?s=20";
+  "https://x.com/femmenote/status/2071115547341672741?s=20";
 
 const BASE_USER_DATA_DIR =
   process.env.BASE_USER_DATA_DIR ||
   "C:\\Users\\HP\\AppData\\Local\\Google\\Chrome\\User Data\\Automation";
 
 const ACCOUNT_NAMES = [
-  "adore",
-  "orange",
-  "bluemoon",
-  "kiran",
+  // "adore",
+  // "orange",
+  // "bluemoon",
   // "hibye",
   // "inyvix",
   // "bae",
   // "anchinka",
-  // "ivy",
-  // "meera",
-  // "meera",
-  // "water2",
-  // "water3",
-  // "fire1",
-  // "fire2",
-  // "fire3",
 ];
-const REGISTER_MODE = false;
+const REGISTER_MODE = true;
 const HEADLESS = false;
 
 // ================== ACTION CONFIG ==================
@@ -438,7 +429,6 @@ async function analyzeTweetSize(page) {
 
     return analysis;
   } catch (err) {
-    console.log("Tweet analysis error:", err.message);
     return null;
   }
 }
@@ -804,24 +794,18 @@ async function processProfile(
     }
 
     // Wait for tweet actions to be fully loaded with enhanced retry logic
-    console.log(`⏳ Waiting for tweet actions to load...`);
     let actionsVisible = false;
     for (let attempt = 1; attempt <= 4; attempt++) {
-      console.log(`🔍 Attempt ${attempt}/4 to detect tweet action buttons...`);
       try {
         await page.waitForSelector('[data-testid="retweet"]', { timeout: 3500 });
         actionsVisible = true;
-        console.log(`✅ Tweet actions detected successfully on attempt ${attempt}!`);
         break;
       } catch (e) {
-        console.log(`⚠️ Attempt ${attempt} failed - buttons not visible yet`);
-
         if (attempt < 4) {
           // Smart adjustment based on attempt number
           const adjustment = attempt === 1 ? 30 :
                             attempt === 2 ? 60 :
                             attempt === 3 ? -40 : 20;
-          console.log(`🔄 Adjusting scroll by ${adjustment}px and retrying...`);
           await page.evaluate((amt) => window.scrollBy(0, amt), adjustment);
           await sleepWithJitter(700, accountIndex);
         }
@@ -829,7 +813,6 @@ async function processProfile(
     }
 
     if (!actionsVisible) {
-      console.log(`⚠️ Tweet actions still not visible after 4 attempts, trying final recovery...`);
       // Final recovery attempt: scroll back and try again
       await page.evaluate(() => window.scrollBy(0, -80));
       await sleepWithJitter(600, accountIndex);
@@ -837,9 +820,8 @@ async function processProfile(
       // One last check
       try {
         await page.waitForSelector('[data-testid="retweet"]', { timeout: 2000 });
-        console.log(`✅ Actions detected on final recovery attempt!`);
       } catch (e) {
-        console.log(`⚠️ Actions still not detected, will proceed with caution...`);
+        // Actions still not detected, will proceed with caution
       }
     }
 

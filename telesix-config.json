@@ -1,0 +1,10 @@
+{
+  "stopUrl": "https://x.com/am1rax/status/2070511474037203135?s=46",
+  "repeat": 1,
+  "actions": {
+    "like": true,
+    "bookmark": false,
+    "retweet": false,
+    "comment": false
+  }
+}

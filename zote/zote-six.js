@@ -24,12 +24,12 @@ const ACCOUNT_NAMES = [
   "adore",
   "orange",
   // "bluemoon",
-  "kiran",
-  "hibye",
-  "inyvix",
-  "bae",
-  "anchinka",
-  "meera",
+  // "kiran",
+  // "hibye",
+  // "inyvix",
+  // "bae",
+  // "anchinka",
+  // "meera",
   // "ivy",
   // "ixyi",
   // "water1",
@@ -52,8 +52,9 @@ const SEND_TO_TELEGRAM = true; // Set to true to enable Telegram notifications
 // ================== ACTION CONFIG ==================
 // ⚠️ SET THESE TO true/false BEFORE RUNNING ⚠️
 const DO_LIKE = true; // Like tweets while scrolling
-const DO_BOOKMARK = false; // Bookmark tweets while scrolling
-const DO_RETWEET = false; // Retweet tweets while scrolling
+const DO_BOOKMARK = true; // Bookmark tweets while scrolling
+const DO_RETWEET = true; // Retweet tweets while scrolling
+const DO_QUOTE = true; // Quote tweet while scrolling
 const DO_COMMENT = false; // Comment on tweets while scrolling
 const SLEEP_MS = 800; // Base delay between actions (milliseconds)
 const ACCOUNT_STAGGER = 4000; // Stagger delay between accounts (ms)
@@ -134,6 +135,30 @@ const QUOTES = [
   "The right person will feel like home.",
   "This is the most beautiful kind of realization.",
 ];
+
+// Shuffle function to randomize quote order
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+// Create shuffled copy to ensure no repeats in a session
+let shuffledQuotes = shuffleArray([...QUOTES]);
+let quoteIndex = 0;
+
+// Get next quote without repetition
+function getNextQuote() {
+  if (quoteIndex >= shuffledQuotes.length) {
+    // Reshuffle when all quotes have been used
+    shuffledQuotes = shuffleArray([...QUOTES]);
+    quoteIndex = 0;
+    console.log("🔄 Reshuffling quotes - all have been used once!");
+  }
+  return shuffledQuotes[quoteIndex++];
+}
 
 // CLI helper
 const rl = readline.createInterface({
@@ -249,6 +274,93 @@ async function isLoggedIn(page) {
       (await page.$('div[role="feed"]'))
     );
   } catch {
+    return false;
+  }
+}
+
+// Click helper (MAIN TWEET ONLY) - Uses Puppeteer native click for better compatibility
+async function clickIfVisible(page, selectors = []) {
+  try {
+    // Find the main tweet
+    const tweets = await page.$$('[role="article"], [data-testid="tweet"]');
+    if (tweets.length === 0) return false;
+
+    const mainTweet = tweets[0];
+
+    // Try each selector on the main tweet only
+    for (const selector of selectors) {
+      try {
+        const el = await mainTweet.$(selector);
+        if (el) {
+          // Ensure element is visible and clickable
+          const isVisible = await el.isIntersectingViewport();
+          if (!isVisible) continue;
+
+          // Scroll element into view if needed
+          await el.scrollIntoViewIfNeeded();
+          await sleep(100); // Small delay after scroll
+
+          await el.click();
+          return true;
+        }
+      } catch (e) {
+        // Selector error, try next one
+      }
+    }
+
+    // If normal selectors fail, try a more aggressive approach for small tweets
+    try {
+      const result = await page.evaluate((selArray) => {
+        const tweets = document.querySelectorAll(
+          '[role="article"], [data-testid="tweet"]',
+        );
+        if (tweets.length === 0) return false;
+
+        const mainTweet = tweets[0];
+
+        // Try each selector with more flexible matching
+        for (const selector of selArray) {
+          const element = mainTweet.querySelector(selector);
+          if (element) {
+            // Force click using JavaScript
+            element.click();
+            return true;
+          }
+        }
+        return false;
+      }, selectors);
+
+      if (result) {
+        return true;
+      }
+    } catch (e) {
+      // Fallback click failed
+    }
+
+    return false;
+  } catch (err) {
+    return false;
+  }
+}
+
+// Click helper (GLOBAL - searches entire page, not just main tweet)
+async function clickIfVisibleGlobal(page, selectors = []) {
+  try {
+    // Try each selector globally on the entire page
+    for (const selector of selectors) {
+      try {
+        const el = await page.$(selector);
+        if (el) {
+          await el.click();
+          return true;
+        }
+      } catch (e) {
+        // Selector error, try next one
+      }
+    }
+    return false;
+  } catch (err) {
+    console.log("Global click error:", err.message);
     return false;
   }
 }
@@ -552,7 +664,7 @@ async function processProfile(
             }
           }
 
-          // 🔁 Retweet (direct from timeline, don't open tweet)
+          // 🔁 STEP 2: RETWEET (REPOST) AFTER QUOTE - with proper timing like zote-core
           if (DO_RETWEET) {
             try {
               const retweetButton = await tweet.$('[data-testid="retweet"]');
@@ -566,21 +678,56 @@ async function processProfile(
                 }, retweetButton);
 
                 if (!isRetweeted) {
-                  await retweetButton.click();
-                  await sleepWithJitter(300, accountIndex);
+                  console.log(`🔁 RETWEET: Performing simple retweet now...`);
 
-                  const menuItems = await page.$$('[role="menuitem"]');
-                  if (menuItems.length > 0) {
-                    await menuItems[0].click();
-                    await sleepWithJitter(700, accountIndex);
-                    console.log(`🔁 Retweeted tweet`);
+                  // Click retweet icon (with retry logic like zote-core)
+                  let rtButton = false;
+                  for (let attempt = 1; attempt <= 3; attempt++) {
+                    console.log(`🔄 RETWEET: Retweet icon click attempt ${attempt}/3 for repost...`);
+                    try {
+                      await retweetButton.click();
+                      rtButton = true;
+                      console.log(`✅ RETWEET: Retweet icon clicked successfully on attempt ${attempt}`);
+                      break;
+                    } catch (e) {
+                      console.log(`⚠️ RETWEET: Click attempt ${attempt} failed: ${e.message}`);
+                      if (attempt < 3) {
+                        console.log(`⏳ RETWEET: Waiting 1 second before retry...`);
+                        await sleep(1000);
+                      }
+                    }
+                  }
+
+                  if (!rtButton) {
+                    console.log(`⚠️ RETWEET: Could not find Retweet icon for repost after 3 attempts.`);
+                  } else {
+                    // Wait for menu to appear (like zote-core)
+                    console.log(`⏳ RETWEET: Waiting 1000ms for menu to appear...`);
+                    await sleepWithJitter(1000, accountIndex);
+
+                    // Click "Retweet" option (1st menu item like zote-core)
+                    console.log(`🔍 RETWEET: Looking for retweet menu items...`);
+                    const repostMenuItems = await page.$$(`div[role="menuitem"]`);
+                    console.log(`📊 RETWEET: Found ${repostMenuItems.length} menu items`);
+
+                    if (repostMenuItems.length >= 1) {
+                      await repostMenuItems[0].click();
+                      console.log(`🔁 RETWEET: Clicked "Retweet" (1st menu item) successfully.`);
+                    } else {
+                      console.log(`⚠️ RETWEET: Not enough menu items for retweet.`);
+                    }
+
+                    // Final wait after retweet (from zote-core)
+                    console.log(`⏳ RETWEET: Waiting 1500ms after retweet...`);
+                    await sleepWithJitter(1500, accountIndex);
+                    console.log(`✅ RETWEET: Completed Quote + Repost sequence.`);
                   }
                 } else {
-                  console.log(`⏭️ Already retweeted - skipping`);
+                  console.log(`⏭️ RETWEET: Already retweeted - skipping`);
                 }
               }
             } catch (e) {
-              console.log(`⚠️ Retweet error: ${e.message}`);
+              console.log(`⚠️ RETWEET: Retweet error: ${e.message}`);
             }
           }
 
@@ -607,6 +754,115 @@ async function processProfile(
               }
             } catch (e) {
               console.log(`⚠️ Bookmark error: ${e.message}`);
+            }
+          }
+
+          // ✍️ STEP 1: QUOTE FIRST (with proper timing like zote-core)
+          if (DO_QUOTE) {
+            try {
+              console.log(`📝 QUOTE: Starting Quote flow for tweet ${processedTweets + 1}...`);
+
+              // Find retweet button within CURRENT tweet element
+              const retweetButton = await tweet.$('[data-testid="retweet"]');
+              if (!retweetButton) {
+                console.log(`⚠️ QUOTE: Retweet button not found for this tweet - skipping quote`);
+              } else {
+                console.log(`✅ QUOTE: Found retweet button, proceeding with quote...`);
+                let retweetClicked = false;
+
+                // Click retweet icon (with retry logic) - like zote-core
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                  console.log(`🔄 QUOTE: Retweet icon click attempt ${attempt}/3...`);
+                  try {
+                    // Scroll into view if needed
+                    await retweetButton.scrollIntoViewIfNeeded();
+                    await sleep(100);
+
+                    // Click the retweet button on current tweet
+                    await retweetButton.click();
+                    retweetClicked = true;
+                    console.log(`✅ QUOTE: Retweet icon clicked successfully on attempt ${attempt}`);
+                    break;
+                  } catch (e) {
+                    console.log(`⚠️ QUOTE: Click attempt ${attempt} failed: ${e.message}`);
+                    if (attempt < 3) {
+                      console.log(`⏳ QUOTE: Waiting 1 second before retry...`);
+                      await sleep(1000);
+                    }
+                  }
+                }
+
+                if (!retweetClicked) {
+                  console.log(`⚠️ QUOTE: Could not click retweet icon for quote after 3 attempts.`);
+                } else {
+                  // Wait for menu to appear (proper timing from zote-core)
+                  console.log(`⏳ QUOTE: Waiting 1200ms for menu to appear...`);
+                  await sleepWithJitter(1200, accountIndex);
+
+                  // Click "Quote" option (2nd menu item like zote-core)
+                  console.log(`🔍 QUOTE: Looking for quote menu items...`);
+                  const quoteMenuItems = await page.$$(`div[role="menuitem"]`);
+                  console.log(`📊 QUOTE: Found ${quoteMenuItems.length} menu items`);
+
+                  if (quoteMenuItems.length >= 2) {
+                    await quoteMenuItems[1].click();
+                    console.log(`✍️ QUOTE: Selected "Quote" option (2nd menu item).`);
+                  } else {
+                    console.log(`⚠️ QUOTE: Not enough menu items, trying fallback...`);
+                    const quoteLink = await page.$('a[href="/compose/post"]');
+                    if (quoteLink) {
+                      await quoteLink.click();
+                      console.log(`🪶 QUOTE: Clicked Quote via <a> link.`);
+                    } else {
+                      console.log(`⚠️ QUOTE: Quote menu not found via fallback either.`);
+                      return;
+                    }
+                  }
+
+                  // Wait for text box (like zote-core)
+                  console.log(`⏳ QUOTE: Waiting for textbox to appear...`);
+                  await page.waitForSelector('div[role="textbox"]', { timeout: 10000 });
+
+                  // Extra wait & focus to avoid missing first letter (from zote-core)
+                  console.log(`⏳ QUOTE: Waiting 800ms before clicking textbox...`);
+                  await sleepWithJitter(800, accountIndex);
+
+                  console.log(`📝 QUOTE: Clicking textbox...`);
+                  await page.click('div[role="textbox"]');
+
+                  console.log(`⏳ QUOTE: Waiting 400ms after clicking textbox...`);
+                  await sleepWithJitter(400, accountIndex);
+
+                  // Type quote with proper delay (from zote-core)
+                  const randomQuote = getNextQuote();
+                  console.log(`⌨️ QUOTE: Typing quote: "${randomQuote}"`);
+                  await page.type('div[role="textbox"]', randomQuote, { delay: 60 });
+                  console.log(`💬 QUOTE: Typed quote successfully`);
+
+                  // Wait after typing (from zote-core)
+                  console.log(`⏳ QUOTE: Waiting 1000ms after typing...`);
+                  await sleepWithJitter(1000, accountIndex);
+
+                  // Click Post button (use GLOBAL search - button is in dialog overlay)
+                  console.log(`🚀 QUOTE: Attempting to post...`);
+                  const posted = await clickIfVisibleGlobal(page, [
+                    'div[data-testid="tweetButtonInline"]',
+                    'div[data-testid="tweetButton"]',
+                    'button[data-testid="tweetButton"]',
+                  ]);
+                  if (posted) {
+                    console.log(`✅ QUOTE: Posted Quote successfully!`);
+                  } else {
+                    console.log(`⚠️ QUOTE: Could not post Quote (may already be quoted). Continuing...`);
+                  }
+
+                  // Final wait after posting (from zote-core)
+                  console.log(`⏳ QUOTE: Waiting 2500ms after posting...`);
+                  await sleepWithJitter(2500, accountIndex);
+                }
+              }
+            } catch (e) {
+              console.log(`⚠️ QUOTE: Quote error: ${e.message}`);
             }
           }
 

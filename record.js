@@ -4,6 +4,8 @@ import fs from "fs";
 import path from "path";
 import readline from "readline";
 import axios from "axios";
+import FormData from "form-data";
+import { PuppeteerScreenRecorder } from "puppeteer-screen-recorder";
 
 // 🧩 Enable stealth plugin to bypass bot detection
 puppeteer.use(StealthPlugin());
@@ -18,83 +20,124 @@ puppeteer.use(StealthPlugin());
 // The profile URL will be automatically extracted from the end_url
 // Tasks will be processed 2 at a time
 const TASKS = [
-  // {
-  //   name: "HIT-1", // Your name for this task
-  //   account: "ivy", // Which automation account to use (Account_hibye folder)
-  //   end_url: "https://x.com/hit_tl1/status/2072302295232987460?s=20",
-  //   actions: ["like"],
-  // },
-  // // // Add more tasks as needed
+  //   // {
+  //   //   name: "HIT-1", // Your name for this task
+  //   //   account: "anchinka", // Which automation account to use (Account_hibye folder)
+  //   //   end_url: "https://x.com/hit_tl1/status/2072491206156677403",
+  //   //   actions: ["like"],
+  //   // },
+  //   // // // // Add more tasks as needed
 
-  // {
-  //   name: "hit RT",
-  //   account: "ivy",
-  //   end_url: "https://x.com/Bunty277/status/2072302741880266852?s=20",
-  //   actions: ["repost"],
-  // },
-  // {
-  //   name: "WE RT",
-  //   account: "ivy",
-  //   end_url: "https://x.com/yaduvnair/status/2071959471421837611?s=20",
-  //   actions: ["repost"],
-  // },
-  // {
-  //   name: "we like", // Your name for this task
-  //   account: "meera", // Which automation account to use (Account_hibye folder)
-  //   end_url: "https://x.com/Wetogethertlid/status/2072318412068716613?s=20",
-  //   actions: ["like"],
-  // },
-  // Add more tasks as needed
+  //   // {
+  //   //   name: "hit RT",
+  //   //   account: "meera",
+  //   //   end_url: "https://x.com/Bunty277/status/2072491941560824156",
+  //   //   actions: ["repost"],
+  //   // },
+  //   // {
+  //   //   name: "WE RT",
+  //   //   account: "anchinka",
+  //   //   end_url: "https://x.com/yaduvnair/status/2072534359366938874",
+  //   //   actions: ["repost"],
+  //   // },
+  //   // {
+  //   //   name: "we like", // Your name for this task
+  //   //   account: "meera", // Which automation account to use (Account_hibye folder)
+  //   //   end_url: "https://x.com/Wetogethertlid/status/2072534477092569216?s=20",
+  //   //   actions: ["like"],
+  //   // },
+  //   // Add more tasks as needed
 
-  // {
-  //   name: "rajbhoghun",
-  //   account: "ivy",
-  //   end_url: "https://x.com/rajbhoghun/status/2071948087107445067",
-  //   actions: ["like"],
-  // },
-  // {
-  //   name: "Loveable",
-  //   account: "meera",
-  //   end_url: "https://x.com/Loveable0199/status/2072338434971111838?s=20",
-  //   actions: ["repost"],
-  // },
-  // {
-  //   name: "Rinku725",
-  //   account: "meera",
-  //   end_url: "https://x.com/Rinku725/status/2071940663302578329?s=20",
-  //   actions: ["repost"],
-  // },
-  // {
-  //   name: "Rinku725",
-  //   account: "ivy",
-  //   end_url: "https://x.com/poolh28t/status/2071948670107340824",
-  //   actions: ["repost"],
-  // },
+  //   // {
+  //   //   name: "rajbhoghun",
+  //   //   account: "ivy",
+  //   //   end_url: "https://x.com/rajbhoghun/status/2071948087107445067",
+  //   //   actions: ["like"],
+  //   // },
+  //   {
+  //     name: "Loveable",
+  //     account: "meera",
+  //     end_url: "https://x.com/loveebirdsss/status/2072973122085786092",
+  //     actions: ["like"],
+  //   },
+  //   // {
+  //   //   name: "Rinku725",
+  //   //   account: "meera",
+  //   //   end_url: "https://x.com/Rinku725/status/2071940663302578329?s=20",
+  //   //   actions: ["repost"],
+  //   // },
+  //   // {
+  //   //   name: "Rinku725",
+  //   //   account: "ivy",
+  //   //   end_url: "https://x.com/poolh28t/status/2071948670107340824",
+  //   //   actions: ["repost"],
+  //   // },
   // {
   //   name: "loveebirdsss",
-  //   account: "meera",
-  //   end_url: "https://x.com/loveebirdsss/status/2072315525900968096?s=20",
+  //   account: "bluemoon",
+  //   end_url: "https://x.com/loveebirdsss/status/2077248958225658243?s=20",
   //   actions: ["like"],
   // },
   // {
-  //   name: "Rinku725",
+  //   name: "Monu191947",
   //   account: "meera",
-  //   end_url: "https://x.com/jalebihun/status/2071948964769743150",
-  //   actions: ["repost"],
+  //   end_url: "https://x.com/Monu191947/status/2077233084848623988?s=20",
+  //   actions: ["like"],
   // },
   {
-    name: "jelibihuin",
+    name: "rapid likes",
     account: "meera",
-    end_url: "https://x.com/jalebihun/status/2072313478111523281",
-    actions: ["repost"],
+    end_url: "https://x.com/JohnSmithxmfzk/status/2077235305795498325?s=20",
+    actions: ["like"],
+  },
+  {
+    name: "rcb",
+    account: "hibye",
+    end_url: "https://x.com/RcbShakshi/status/2077235420799041544?s=20",
+    actions: ["like"],
   },
 ];
+
+// const TASKS = [
+//   {
+//     name: "HIT 1", // Your name for this task
+//     account: "ivy", // Which automation account to use (Account_hibye folder)
+//     end_url: "https://x.com/hit_tl1/status/2076365799384653898?s=20",
+//     actions: ["like"],
+//   },
+//   // // // // // Add more tasks as needed
+
+//   {
+//     name: "Bunty277",
+//     account: "meera",
+//     end_url: "https://x.com/Bunty277/status/2076366852779803079?s=20",
+//     actions: ["repost"],
+//   },
+//   // // {
+//   // //   name: "we rt",
+//   // //   account: "meera",
+//   // //   end_url: "https://x.com/yaduvnair/status/2073764971121606719?s=20",
+//   // //   actions: ["repost"],
+//   // // },
+//   {
+//     name: "Rinku725", // Your name for this task
+//     account: "meera", // Which automation account to use (Account_hibye folder)
+//     end_url: "https://x.com/Rinku725/status/2076367076172706138?s=20",
+//     actions: ["repost"],
+//   },
+// ];
 
 // Available actions: 'like', 'repost', 'bookmark', 'comment'
 
 const BASE_USER_DATA_DIR =
   process.env.BASE_USER_DATA_DIR ||
   "C:\\Users\\HP\\AppData\\Local\\Google\\Chrome\\User Data\\Automation";
+
+// 📼 RECORDINGS FOLDER
+const RECORDINGS_DIR = "C:\\new-tube\\recordings";
+if (!fs.existsSync(RECORDINGS_DIR)) {
+  fs.mkdirSync(RECORDINGS_DIR, { recursive: true });
+}
 
 // Multiple accounts configuration
 // const ACCOUNT_NAMES = [
@@ -206,6 +249,39 @@ async function sendTaskComplete(task, accountName, passNumber, result) {
   }
 
   await sendTelegramMessage(message);
+}
+
+async function sendTelegramVideo(filepath, taskName, accountName) {
+  // Read video file
+  const videoData = fs.readFileSync(filepath);
+
+  for (const chatId of TELEGRAM_CHAT_IDS) {
+    try {
+      const form = new FormData();
+      form.append("chat_id", chatId);
+      form.append("video", videoData, {
+        filename: path.basename(filepath),
+        contentType: "video/mp4",
+      });
+      form.append(
+        "caption",
+        `📼 <b>Recording for task: ${taskName}</b>\n\n👤 Account: ${accountName}\n⚡ Actions completed - scroll to top recorded`,
+      );
+
+      await axios.post(
+        `https://api.telegram.org/bot${BOT_TOKEN}/sendVideo`,
+        form,
+        {
+          headers: {
+            ...form.getHeaders(),
+          },
+        },
+      );
+      console.log(`📤 Video sent to Telegram ${chatId}`);
+    } catch (error) {
+      console.error(`❌ Telegram video error for ${chatId}:`, error.message);
+    }
+  }
 }
 
 async function sendFinalSummary(allResults) {
@@ -430,6 +506,164 @@ async function isLoggedIn(page) {
   }
 }
 
+// ================== SCREEN RECORDING ==================
+async function recordScrollToTop(page, taskName, accountName) {
+  try {
+    console.log(`\n📼 Starting screen recording...`);
+
+    // Generate video filename with timestamp
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, -5);
+    const filename = `${taskName}_${accountName}_${timestamp}.mp4`;
+    const filepath = path.join(RECORDINGS_DIR, filename);
+
+    console.log(`💾 Will save to: ${filepath}`);
+
+    // Initialize screen recorder with optimized settings for small file size
+    const recorder = new PuppeteerScreenRecorder(page);
+
+    // Start recording immediately
+    console.log(`⚡⬆️ Starting ULTRA AGGRESSIVE scroll to top...`);
+    await recorder.start(filepath);
+
+    // Get current position
+    const currentScroll = await page.evaluate(() => window.scrollY);
+    console.log(`📹 Starting position: ${currentScroll}px`);
+
+    // Ultra aggressive scroll strategy - INSTANT scrolling for maximum speed
+    const ULTRA_SCROLL_DISTANCE = 2000; // Even larger chunk per scroll (2K pixels!)
+    const totalSteps = Math.ceil(currentScroll / ULTRA_SCROLL_DISTANCE);
+    console.log(
+      `📹 Will use ${totalSteps} LIGHTNING FAST scrolls to reach top`,
+    );
+
+    // Track positions to detect when near top
+    let previousPos = currentScroll;
+    let nearTop = false;
+
+    // Lightning fast scrolling - fetch posts while scrolling fast
+    for (let i = 0; i < totalSteps; i++) {
+      // Calculate progress (0 to 1)
+      const progress = i / totalSteps;
+
+      // LIGHTNING FAST at beginning, slow down when near top
+      let delay;
+      if (!nearTop && progress < 0.85) {
+        delay = 10; // LIGHTNING FAST - fetch posts rapidly (10ms = ultra fast)
+      } else if (progress < 0.95) {
+        delay = 40; // Medium - starting to slow down
+        nearTop = true; // We're near top now
+      } else {
+        delay = 80; // Slow - final gentle approach
+      }
+
+      console.log(
+        `📹 Scroll ${i + 1}/${totalSteps} - Progress: ${Math.round(progress * 100)}% - Delay: ${delay}ms${nearTop ? " (NEAR TOP)" : " (FETCHING POSTS)"}`,
+      );
+
+      // Lightning fast scroll step - INSTANT behavior
+      await page.evaluate((dist) => {
+        window.scrollBy({ top: -dist, behavior: "auto" }); // INSTANT, not smooth
+      }, ULTRA_SCROLL_DISTANCE);
+
+      await sleep(delay);
+
+      // Force content rendering and post fetching
+      await page.evaluate(() => {
+        const tweets = document.querySelectorAll('[data-testid="tweet"]');
+        tweets.forEach((t) => t.getBoundingClientRect());
+      });
+
+      // Check current position
+      const currentPos = await page.evaluate(() => window.scrollY);
+      console.log(
+        `📹 Position: ${currentPos}px (moved: ${previousPos - currentPos}px)`,
+      );
+
+      // Detect if we're near top (last 3000 pixels)
+      if (currentPos < 3000 && !nearTop) {
+        console.log(`📹 Near top detected (< 3000px), will slow down...`);
+        nearTop = true;
+      }
+
+      previousPos = currentPos;
+
+      // If we're already at top, break
+      if (currentPos <= 50) {
+        console.log(`📹 At top, breaking early...`);
+        break;
+      }
+    }
+
+    // Final instant jump to top
+    console.log(`📹 Final instant jump to top...`);
+    await page.evaluate(() => {
+      window.scrollTo({ top: 0, behavior: "auto" }); // INSTANT
+    });
+
+    await sleep(100); // Ultra quick settle
+
+    const finalPos = await page.evaluate(() => window.scrollY);
+    console.log(`📹 Final position at top: ${finalPos}px`);
+
+    // Wait exactly 1 second before redirect (as requested)
+    console.log(`📹 Waiting exactly 1 second before redirect to profile...`);
+    await sleep(1000);
+
+    // Click profile immediately after 1 second
+    console.log(`📹 Clicking profile now...`);
+    try {
+      await page.evaluate(() => {
+        const profileLink = document.querySelector(
+          '[data-testid="AppTabBar_Profile_Link"]',
+        );
+        if (profileLink) {
+          profileLink.click();
+          console.log(`✅ Profile clicked!`);
+        } else {
+          console.log(`⚠️ Profile link not found`);
+        }
+      });
+      await sleep(1000); // Quick wait for navigation
+    } catch (e) {
+      console.log(`⚠️ Could not click profile: ${e.message}`);
+    }
+
+    // Stop recording
+    await recorder.stop();
+
+    console.log(`📼 Recording stopped. Processing video...`);
+
+    // Check file size
+    const stats = fs.statSync(filepath);
+    const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+    console.log(`📊 Video file size: ${fileSizeMB} MB`);
+
+    if (stats.size > 10 * 1024 * 1024) {
+      console.log(`⚠️ Warning: File exceeds 10 MB`);
+    } else {
+      console.log(`✅ File size within limits (8-10 MB)`);
+    }
+
+    console.log(`✅ Recording saved: ${filename}`);
+
+    return {
+      success: true,
+      filepath,
+      filename,
+      fileSizeMB,
+    };
+  } catch (error) {
+    console.log(`❌ Recording failed: ${error.message}`);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
 // ================== ACTION LOGIC ==================
 async function processProfile(
   profileDir,
@@ -454,7 +688,7 @@ async function processProfile(
   const DO_RETWEET = task?.actions?.includes("repost") || false;
   const DO_BOOKMARK = task?.actions?.includes("bookmark") || false;
   const DO_COMMENT = task?.actions?.includes("comment") || false;
-  const taskId = task?.id || "unknown";
+  const taskId = task?.name || "unknown";
 
   // Send Telegram notification when task starts
   if (task) {
@@ -683,6 +917,38 @@ async function processProfile(
             // Send Telegram completion notification
             if (task) {
               await sendTaskComplete(task, profileName, passNumber, result);
+            }
+
+            // 📼 Record scroll to top and send to Telegram IMMEDIATELY AFTER SECOND PASS
+            if (passNumber === 2) {
+              console.log(
+                `\n📼 Recording scroll to top NOW (browser still open)...`,
+              );
+              try {
+                const recordingResult = await recordScrollToTop(
+                  page,
+                  task.name,
+                  profileName,
+                );
+                if (recordingResult.success) {
+                  console.log(
+                    `✅ Recording completed: ${recordingResult.filename}`,
+                  );
+                  console.log(`📁 Saved to: ${recordingResult.filepath}`);
+                  console.log(`📊 Size: ${recordingResult.fileSizeMB} MB`);
+
+                  // Send video to Telegram
+                  console.log(`📤 Sending video to Telegram...`);
+                  await sendTelegramVideo(
+                    recordingResult.filepath,
+                    task.name,
+                    profileName,
+                  );
+                  console.log(`✅ Video sent to Telegram`);
+                }
+              } catch (recordError) {
+                console.log(`⚠️ Recording failed: ${recordError.message}`);
+              }
             }
 
             return result;
@@ -1264,6 +1530,8 @@ async function processProfile(
     console.log(`   Skipped tweets: ${skippedTweets.length}`);
     console.log(`\n======================================================\n`);
 
+    // NO recording here - recording happens AFTER second pass only
+
     return result;
   } catch (err) {
     console.error(`🔥 Error with ${profileName}:`, err.message);
@@ -1279,6 +1547,8 @@ async function processProfile(
     if (task) {
       await sendTaskComplete(task, profileName, passNumber, errorResult);
     }
+
+    // NO recording on error - only record after successful second pass
 
     return errorResult;
   } finally {
