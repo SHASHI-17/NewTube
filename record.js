@@ -19,113 +19,113 @@ puppeteer.use(StealthPlugin());
 // - actions: array of actions to perform
 // The profile URL will be automatically extracted from the end_url
 // Tasks will be processed 2 at a time
-const TASKS = [
-  //   // {
-  //   //   name: "HIT-1", // Your name for this task
-  //   //   account: "anchinka", // Which automation account to use (Account_hibye folder)
-  //   //   end_url: "https://x.com/hit_tl1/status/2072491206156677403",
-  //   //   actions: ["like"],
-  //   // },
-  //   // // // // Add more tasks as needed
-
-  //   // {
-  //   //   name: "hit RT",
-  //   //   account: "meera",
-  //   //   end_url: "https://x.com/Bunty277/status/2072491941560824156",
-  //   //   actions: ["repost"],
-  //   // },
-  //   // {
-  //   //   name: "WE RT",
-  //   //   account: "anchinka",
-  //   //   end_url: "https://x.com/yaduvnair/status/2072534359366938874",
-  //   //   actions: ["repost"],
-  //   // },
-  //   // {
-  //   //   name: "we like", // Your name for this task
-  //   //   account: "meera", // Which automation account to use (Account_hibye folder)
-  //   //   end_url: "https://x.com/Wetogethertlid/status/2072534477092569216?s=20",
-  //   //   actions: ["like"],
-  //   // },
-  //   // Add more tasks as needed
-
-  //   // {
-  //   //   name: "rajbhoghun",
-  //   //   account: "ivy",
-  //   //   end_url: "https://x.com/rajbhoghun/status/2071948087107445067",
-  //   //   actions: ["like"],
-  //   // },
-  //   {
-  //     name: "Loveable",
-  //     account: "meera",
-  //     end_url: "https://x.com/loveebirdsss/status/2072973122085786092",
-  //     actions: ["like"],
-  //   },
-  //   // {
-  //   //   name: "Rinku725",
-  //   //   account: "meera",
-  //   //   end_url: "https://x.com/Rinku725/status/2071940663302578329?s=20",
-  //   //   actions: ["repost"],
-  //   // },
-  //   // {
-  //   //   name: "Rinku725",
-  //   //   account: "ivy",
-  //   //   end_url: "https://x.com/poolh28t/status/2071948670107340824",
-  //   //   actions: ["repost"],
-  //   // },
-  // {
-  //   name: "loveebirdsss",
-  //   account: "bluemoon",
-  //   end_url: "https://x.com/loveebirdsss/status/2077248958225658243?s=20",
-  //   actions: ["like"],
-  // },
-  // {
-  //   name: "Monu191947",
-  //   account: "meera",
-  //   end_url: "https://x.com/Monu191947/status/2077233084848623988?s=20",
-  //   actions: ["like"],
-  // },
-  {
-    name: "rapid likes",
-    account: "meera",
-    end_url: "https://x.com/JohnSmithxmfzk/status/2077235305795498325?s=20",
-    actions: ["like"],
-  },
-  {
-    name: "rcb",
-    account: "hibye",
-    end_url: "https://x.com/RcbShakshi/status/2077235420799041544?s=20",
-    actions: ["like"],
-  },
-];
-
 // const TASKS = [
+//   //   // {
+//   //   //   name: "HIT-1", // Your name for this task
+//   //   //   account: "anchinka", // Which automation account to use (Account_hibye folder)
+//   //   //   end_url: "https://x.com/hit_tl1/status/2072491206156677403",
+//   //   //   actions: ["like"],
+//   //   // },
+//   //   // // // // Add more tasks as needed
+
+//   //   // {
+//   //   //   name: "hit RT",
+//   //   //   account: "meera",
+//   //   //   end_url: "https://x.com/Bunty277/status/2072491941560824156",
+//   //   //   actions: ["repost"],
+//   //   // },
+//   //   // {
+//   //   //   name: "WE RT",
+//   //   //   account: "anchinka",
+//   //   //   end_url: "https://x.com/yaduvnair/status/2072534359366938874",
+//   //   //   actions: ["repost"],
+//   //   // },
+//   //   // {
+//   //   //   name: "we like", // Your name for this task
+//   //   //   account: "meera", // Which automation account to use (Account_hibye folder)
+//   //   //   end_url: "https://x.com/Wetogethertlid/status/2072534477092569216?s=20",
+//   //   //   actions: ["like"],
+//   //   // },
+//   //   // Add more tasks as needed
+
+//   //   // {
+//   //   //   name: "rajbhoghun",
+//   //   //   account: "ivy",
+//   //   //   end_url: "https://x.com/rajbhoghun/status/2071948087107445067",
+//   //   //   actions: ["like"],
+//   //   // },
+//   //   {
+//   //     name: "Loveable",
+//   //     account: "meera",
+//   //     end_url: "https://x.com/loveebirdsss/status/2072973122085786092",
+//   //     actions: ["like"],
+//   //   },
+//   //   // {
+//   //   //   name: "Rinku725",
+//   //   //   account: "meera",
+//   //   //   end_url: "https://x.com/Rinku725/status/2071940663302578329?s=20",
+//   //   //   actions: ["repost"],
+//   //   // },
+//   //   // {
+//   //   //   name: "Rinku725",
+//   //   //   account: "ivy",
+//   //   //   end_url: "https://x.com/poolh28t/status/2071948670107340824",
+//   //   //   actions: ["repost"],
+//   //   // },
+//   // {
+//   //   name: "loveebirdsss",
+//   //   account: "bluemoon",
+//   //   end_url: "https://x.com/loveebirdsss/status/2077248958225658243?s=20",
+//   //   actions: ["like"],
+//   // },
+//   // {
+//   //   name: "Monu191947",
+//   //   account: "meera",
+//   //   end_url: "https://x.com/Monu191947/status/2077233084848623988?s=20",
+//   //   actions: ["like"],
+//   // },
 //   {
-//     name: "HIT 1", // Your name for this task
-//     account: "ivy", // Which automation account to use (Account_hibye folder)
-//     end_url: "https://x.com/hit_tl1/status/2076365799384653898?s=20",
+//     name: "rapid likes",
+//     account: "meera",
+//     end_url: "https://x.com/JohnSmithxmfzk/status/2077235305795498325?s=20",
 //     actions: ["like"],
 //   },
-//   // // // // // Add more tasks as needed
-
 //   {
-//     name: "Bunty277",
-//     account: "meera",
-//     end_url: "https://x.com/Bunty277/status/2076366852779803079?s=20",
-//     actions: ["repost"],
-//   },
-//   // // {
-//   // //   name: "we rt",
-//   // //   account: "meera",
-//   // //   end_url: "https://x.com/yaduvnair/status/2073764971121606719?s=20",
-//   // //   actions: ["repost"],
-//   // // },
-//   {
-//     name: "Rinku725", // Your name for this task
-//     account: "meera", // Which automation account to use (Account_hibye folder)
-//     end_url: "https://x.com/Rinku725/status/2076367076172706138?s=20",
-//     actions: ["repost"],
+//     name: "rcb",
+//     account: "hibye",
+//     end_url: "https://x.com/RcbShakshi/status/2077235420799041544?s=20",
+//     actions: ["like"],
 //   },
 // ];
+
+const TASKS = [
+  // {
+  //   name: "HIT 1", // Your name for this task
+  //   account: "hibye", // Which automation account to use (Account_hibye folder)
+  //   end_url: "https://x.com/hit_tl1/status/2078765292319133724?s=20",
+  //   actions: ["like"],
+  // },
+  // // // // // Add more tasks as needed
+
+  {
+    name: "we rt",
+    account: "hibye",
+    end_url: "https://x.com/AkanSimon/status/2078781963779887373?s=20",
+    actions: ["repost"],
+  },
+  // // {
+  // //   name: "we rt",
+  // //   account: "meera",
+  // //   end_url: "https://x.com/yaduvnair/status/2073764971121606719?s=20",
+  // //   actions: ["repost"],
+  // // },
+  // {
+  //   name: "we like", // Your name for this task
+  //   account: "adore", // Which automation account to use (Account_hibye folder)
+  //   end_url: "https://x.com/Wetogethertlid/status/2078781065280229485?s=20",
+  //   actions: ["like"],
+  // },
+];
 
 // Available actions: 'like', 'repost', 'bookmark', 'comment'
 
@@ -731,19 +731,132 @@ async function processProfile(
   });
 
   try {
-    // Close all extra tabs that Chrome restored from previous session
-    const pages = await browser.pages();
-    if (pages.length > 1) {
-      console.log(
-        `🧹 Closing ${pages.length - 1} extra tabs restored from previous session...`,
-      );
-      // Keep the first page, close the rest
-      for (let i = 1; i < pages.length; i++) {
-        await pages[i].close();
+    // CRITICAL FIX: Give Chrome time to fully launch and restore tabs
+    console.log(`⏳ Waiting for Chrome to fully launch...`);
+    await sleep(2000); // Wait 2 seconds for Chrome to stabilize
+
+    // CRITICAL FIX: Check for X.com tabs with retry mechanism (max 4 retries)
+    console.log(`🔍 Checking for restored X.com tabs...`);
+
+    let xTab = null;
+    let pages = [];
+    let retries = 0;
+    const maxRetries = 4; // 4 retries is enough
+
+    // Retry loop to find X.com tab with delays between attempts
+    while (retries < maxRetries && !xTab) {
+      try {
+        pages = await browser.pages();
+
+        // Identify X.com tabs vs blank tabs
+        let blankTabs = [];
+
+        for (let i = 0; i < pages.length; i++) {
+          try {
+            const url = pages[i].url();
+            if (url.includes("x.com") || url.includes("twitter.com")) {
+              xTab = pages[i];
+              console.log(`✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`);
+              break;
+            } else if (url === "about:blank" || url.includes("chrome://")) {
+              blankTabs.push(pages[i]);
+            }
+          } catch (e) {
+            blankTabs.push(pages[i]);
+          }
+        }
+
+        if (xTab) {
+          // Close all blank tabs
+          for (const tab of blankTabs) {
+            try {
+              await tab.close();
+            } catch (e) {
+              // Ignore errors closing tabs
+            }
+          }
+          break;
+        }
+
+        // X tab not found, wait and retry
+        retries++;
+        if (retries < maxRetries) {
+          console.log(`⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`);
+          await sleep(1000); // Wait 1 second before retry
+        }
+      } catch (error) {
+        console.log(`⚠️ Error checking pages: ${error.message}, retrying...`);
+        retries++;
+        if (retries < maxRetries) {
+          await sleep(1000);
+        }
       }
     }
 
-    const page = pages[0]; // Use the existing first page instead of creating a new one
+    // Use X tab if found, otherwise navigate blank tab to X.com
+    let page;
+    if (xTab) {
+      console.log(`✅ Using restored X.com tab`);
+      page = xTab;
+    } else {
+      console.log(`⚠️ No X.com tab found after ${maxRetries} retries`);
+      console.log(`📝 Will navigate blank tab to X.com...`);
+
+      // Get existing pages or create new one
+      pages = await browser.pages();
+      page = pages[0] || (await browser.newPage());
+
+      // Navigate to X.com and wait for it to load
+      console.log(`🌐 Navigating to X.com...`);
+      await page.goto("https://x.com/home", {
+        waitUntil: "networkidle2",
+        timeout: 60000,
+      });
+      console.log(`✅ Successfully navigated to X.com`);
+    }
+
+    // CRITICAL: Bring the correct tab to focus and verify it's active
+    try {
+      await page.bringToFront();
+      await sleep(300); // Increased delay to ensure tab is active
+    } catch (e) {
+      console.log(`⚠️ Could not bring tab to front: ${e.message}`);
+      // If bringToFront fails, try to create a new page
+      try {
+        page = await browser.newPage();
+        console.log(`✅ Created new page instead`);
+        // Navigate new page to X.com
+        console.log(`🌐 Navigating new page to X.com...`);
+        await page.goto("https://x.com/home", {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        });
+      } catch (newPageError) {
+        console.log(`⚠️ Could not create new page: ${newPageError.message}`);
+        throw new Error("Cannot get a valid page to work with");
+      }
+    }
+
+    // CRITICAL: Verify page is still valid before proceeding
+    try {
+      const currentUrl = page.url();
+      console.log(`🔍 Current tab URL: ${currentUrl}`);
+
+      if (currentUrl.includes("x.com") || currentUrl.includes("twitter.com")) {
+        console.log(`✅ On X.com tab, ready to proceed!`);
+      } else {
+        console.log(`⚠️ Not on X.com tab (URL: ${currentUrl}), will navigate...`);
+        console.log(`🌐 Navigating to X.com...`);
+        await page.goto("https://x.com/home", {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        });
+        console.log(`✅ Successfully navigated to X.com`);
+      }
+    } catch (urlError) {
+      console.log(`⚠️ Could not get page URL: ${urlError.message}`);
+      throw new Error("Page is not usable, cannot proceed");
+    }
 
     await page.setUserAgent(fingerprint.userAgent);
 
@@ -1600,19 +1713,132 @@ async function manualLogin(profileDir, profileName) {
   });
 
   try {
-    // Close all extra tabs that Chrome restored from previous session
-    const pages = await browser.pages();
-    if (pages.length > 1) {
-      console.log(
-        `🧹 Closing ${pages.length - 1} extra tabs restored from previous session...`,
-      );
-      // Keep the first page, close the rest
-      for (let i = 1; i < pages.length; i++) {
-        await pages[i].close();
+    // CRITICAL FIX: Give Chrome time to fully launch and restore tabs
+    console.log(`⏳ Waiting for Chrome to fully launch...`);
+    await sleep(2000); // Wait 2 seconds for Chrome to stabilize
+
+    // CRITICAL FIX: Check for X.com tabs with retry mechanism (max 4 retries)
+    console.log(`🔍 Checking for restored X.com tabs...`);
+
+    let xTab = null;
+    let pages = [];
+    let retries = 0;
+    const maxRetries = 4; // 4 retries is enough
+
+    // Retry loop to find X.com tab with delays between attempts
+    while (retries < maxRetries && !xTab) {
+      try {
+        pages = await browser.pages();
+
+        // Identify X.com tabs vs blank tabs
+        let blankTabs = [];
+
+        for (let i = 0; i < pages.length; i++) {
+          try {
+            const url = pages[i].url();
+            if (url.includes("x.com") || url.includes("twitter.com")) {
+              xTab = pages[i];
+              console.log(`✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`);
+              break;
+            } else if (url === "about:blank" || url.includes("chrome://")) {
+              blankTabs.push(pages[i]);
+            }
+          } catch (e) {
+            blankTabs.push(pages[i]);
+          }
+        }
+
+        if (xTab) {
+          // Close all blank tabs
+          for (const tab of blankTabs) {
+            try {
+              await tab.close();
+            } catch (e) {
+              // Ignore errors closing tabs
+            }
+          }
+          break;
+        }
+
+        // X tab not found, wait and retry
+        retries++;
+        if (retries < maxRetries) {
+          console.log(`⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`);
+          await sleep(1000); // Wait 1 second before retry
+        }
+      } catch (error) {
+        console.log(`⚠️ Error checking pages: ${error.message}, retrying...`);
+        retries++;
+        if (retries < maxRetries) {
+          await sleep(1000);
+        }
       }
     }
 
-    const page = pages[0]; // Use the existing first page instead of creating a new one
+    // Use X tab if found, otherwise navigate blank tab to X.com
+    let page;
+    if (xTab) {
+      console.log(`✅ Using restored X.com tab`);
+      page = xTab;
+    } else {
+      console.log(`⚠️ No X.com tab found after ${maxRetries} retries`);
+      console.log(`📝 Will navigate blank tab to X.com...`);
+
+      // Get existing pages or create new one
+      pages = await browser.pages();
+      page = pages[0] || (await browser.newPage());
+
+      // Navigate to X.com and wait for it to load
+      console.log(`🌐 Navigating to X.com...`);
+      await page.goto("https://x.com/home", {
+        waitUntil: "networkidle2",
+        timeout: 60000,
+      });
+      console.log(`✅ Successfully navigated to X.com`);
+    }
+
+    // CRITICAL: Bring the correct tab to focus and verify it's active
+    try {
+      await page.bringToFront();
+      await sleep(300); // Increased delay to ensure tab is active
+    } catch (e) {
+      console.log(`⚠️ Could not bring tab to front: ${e.message}`);
+      // If bringToFront fails, try to create a new page
+      try {
+        page = await browser.newPage();
+        console.log(`✅ Created new page instead`);
+        // Navigate new page to X.com
+        console.log(`🌐 Navigating new page to X.com...`);
+        await page.goto("https://x.com/home", {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        });
+      } catch (newPageError) {
+        console.log(`⚠️ Could not create new page: ${newPageError.message}`);
+        throw new Error("Cannot get a valid page to work with");
+      }
+    }
+
+    // CRITICAL: Verify page is still valid before proceeding
+    try {
+      const currentUrl = page.url();
+      console.log(`🔍 Current tab URL: ${currentUrl}`);
+
+      if (currentUrl.includes("x.com") || currentUrl.includes("twitter.com")) {
+        console.log(`✅ On X.com tab, ready to proceed!`);
+      } else {
+        console.log(`⚠️ Not on X.com tab (URL: ${currentUrl}), will navigate...`);
+        console.log(`🌐 Navigating to X.com...`);
+        await page.goto("https://x.com/home", {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        });
+        console.log(`✅ Successfully navigated to X.com`);
+      }
+    } catch (urlError) {
+      console.log(`⚠️ Could not get page URL: ${urlError.message}`);
+      throw new Error("Page is not usable, cannot proceed");
+    }
 
     await page.goto("https://x.com/home", { waitUntil: "networkidle2" });
     console.log("⚠️ Please log in manually in the opened browser...");

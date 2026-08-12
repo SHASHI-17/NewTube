@@ -279,19 +279,132 @@ async function processProfile(profileDir, profileName, accountIndex = 0) {
   });
 
   try {
-    // Close all extra tabs that Chrome restored from previous session
-    const pages = await browser.pages();
-    if (pages.length > 1) {
-      console.log(
-        `🧹 Closing ${pages.length - 1} extra tabs restored from previous session...`,
-      );
-      // Keep the first page, close the rest
-      for (let i = 1; i < pages.length; i++) {
-        await pages[i].close();
+    // CRITICAL FIX: Give Chrome time to fully launch and restore tabs
+    console.log(`⏳ Waiting for Chrome to fully launch...`);
+    await sleep(2000); // Wait 2 seconds for Chrome to stabilize
+
+    // CRITICAL FIX: Check for X.com tabs with retry mechanism (max 4 retries)
+    console.log(`🔍 Checking for restored X.com tabs...`);
+
+    let xTab = null;
+    let pages = [];
+    let retries = 0;
+    const maxRetries = 4; // 4 retries is enough
+
+    // Retry loop to find X.com tab with delays between attempts
+    while (retries < maxRetries && !xTab) {
+      try {
+        pages = await browser.pages();
+
+        // Identify X.com tabs vs blank tabs
+        let blankTabs = [];
+
+        for (let i = 0; i < pages.length; i++) {
+          try {
+            const url = pages[i].url();
+            if (url.includes("x.com") || url.includes("twitter.com")) {
+              xTab = pages[i];
+              console.log(`✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`);
+              break;
+            } else if (url === "about:blank" || url.includes("chrome://")) {
+              blankTabs.push(pages[i]);
+            }
+          } catch (e) {
+            blankTabs.push(pages[i]);
+          }
+        }
+
+        if (xTab) {
+          // Close all blank tabs
+          for (const tab of blankTabs) {
+            try {
+              await tab.close();
+            } catch (e) {
+              // Ignore errors closing tabs
+            }
+          }
+          break;
+        }
+
+        // X tab not found, wait and retry
+        retries++;
+        if (retries < maxRetries) {
+          console.log(`⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`);
+          await sleep(1000); // Wait 1 second before retry
+        }
+      } catch (error) {
+        console.log(`⚠️ Error checking pages: ${error.message}, retrying...`);
+        retries++;
+        if (retries < maxRetries) {
+          await sleep(1000);
+        }
       }
     }
 
-    const page = pages[0]; // Use the existing first page instead of creating a new one
+    // Use X tab if found, otherwise navigate blank tab to X.com
+    let page;
+    if (xTab) {
+      console.log(`✅ Using restored X.com tab`);
+      page = xTab;
+    } else {
+      console.log(`⚠️ No X.com tab found after ${maxRetries} retries`);
+      console.log(`📝 Will navigate blank tab to X.com...`);
+
+      // Get existing pages or create new one
+      pages = await browser.pages();
+      page = pages[0] || (await browser.newPage());
+
+      // Navigate to X.com and wait for it to load
+      console.log(`🌐 Navigating to X.com...`);
+      await page.goto("https://x.com/home", {
+        waitUntil: "networkidle2",
+        timeout: 60000,
+      });
+      console.log(`✅ Successfully navigated to X.com`);
+    }
+
+    // CRITICAL: Bring the correct tab to focus and verify it's active
+    try {
+      await page.bringToFront();
+      await sleep(300); // Increased delay to ensure tab is active
+    } catch (e) {
+      console.log(`⚠️ Could not bring tab to front: ${e.message}`);
+      // If bringToFront fails, try to create a new page
+      try {
+        page = await browser.newPage();
+        console.log(`✅ Created new page instead`);
+        // Navigate new page to X.com
+        console.log(`🌐 Navigating new page to X.com...`);
+        await page.goto("https://x.com/home", {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        });
+      } catch (newPageError) {
+        console.log(`⚠️ Could not create new page: ${newPageError.message}`);
+        throw new Error("Cannot get a valid page to work with");
+      }
+    }
+
+    // CRITICAL: Verify page is still valid before proceeding
+    try {
+      const currentUrl = page.url();
+      console.log(`🔍 Current tab URL: ${currentUrl}`);
+
+      if (currentUrl.includes("x.com") || currentUrl.includes("twitter.com")) {
+        console.log(`✅ On X.com tab, ready to proceed!`);
+      } else {
+        console.log(`⚠️ Not on X.com tab (URL: ${currentUrl}), will navigate...`);
+        console.log(`🌐 Navigating to X.com...`);
+        await page.goto("https://x.com/home", {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        });
+        console.log(`✅ Successfully navigated to X.com`);
+      }
+    } catch (urlError) {
+      console.log(`⚠️ Could not get page URL: ${urlError.message}`);
+      throw new Error("Page is not usable, cannot proceed");
+    }
 
     await page.setUserAgent(fingerprint.userAgent);
 
@@ -841,19 +954,132 @@ async function manualLogin(profileDir, profileName) {
   });
 
   try {
-    // Close all extra tabs that Chrome restored from previous session
-    const pages = await browser.pages();
-    if (pages.length > 1) {
-      console.log(
-        `🧹 Closing ${pages.length - 1} extra tabs restored from previous session...`,
-      );
-      // Keep the first page, close the rest
-      for (let i = 1; i < pages.length; i++) {
-        await pages[i].close();
+    // CRITICAL FIX: Give Chrome time to fully launch and restore tabs
+    console.log(`⏳ Waiting for Chrome to fully launch...`);
+    await sleep(2000); // Wait 2 seconds for Chrome to stabilize
+
+    // CRITICAL FIX: Check for X.com tabs with retry mechanism (max 4 retries)
+    console.log(`🔍 Checking for restored X.com tabs...`);
+
+    let xTab = null;
+    let pages = [];
+    let retries = 0;
+    const maxRetries = 4; // 4 retries is enough
+
+    // Retry loop to find X.com tab with delays between attempts
+    while (retries < maxRetries && !xTab) {
+      try {
+        pages = await browser.pages();
+
+        // Identify X.com tabs vs blank tabs
+        let blankTabs = [];
+
+        for (let i = 0; i < pages.length; i++) {
+          try {
+            const url = pages[i].url();
+            if (url.includes("x.com") || url.includes("twitter.com")) {
+              xTab = pages[i];
+              console.log(`✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`);
+              break;
+            } else if (url === "about:blank" || url.includes("chrome://")) {
+              blankTabs.push(pages[i]);
+            }
+          } catch (e) {
+            blankTabs.push(pages[i]);
+          }
+        }
+
+        if (xTab) {
+          // Close all blank tabs
+          for (const tab of blankTabs) {
+            try {
+              await tab.close();
+            } catch (e) {
+              // Ignore errors closing tabs
+            }
+          }
+          break;
+        }
+
+        // X tab not found, wait and retry
+        retries++;
+        if (retries < maxRetries) {
+          console.log(`⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`);
+          await sleep(1000); // Wait 1 second before retry
+        }
+      } catch (error) {
+        console.log(`⚠️ Error checking pages: ${error.message}, retrying...`);
+        retries++;
+        if (retries < maxRetries) {
+          await sleep(1000);
+        }
       }
     }
 
-    const page = pages[0]; // Use the existing first page instead of creating a new one
+    // Use X tab if found, otherwise navigate blank tab to X.com
+    let page;
+    if (xTab) {
+      console.log(`✅ Using restored X.com tab`);
+      page = xTab;
+    } else {
+      console.log(`⚠️ No X.com tab found after ${maxRetries} retries`);
+      console.log(`📝 Will navigate blank tab to X.com...`);
+
+      // Get existing pages or create new one
+      pages = await browser.pages();
+      page = pages[0] || (await browser.newPage());
+
+      // Navigate to X.com and wait for it to load
+      console.log(`🌐 Navigating to X.com...`);
+      await page.goto("https://x.com/home", {
+        waitUntil: "networkidle2",
+        timeout: 60000,
+      });
+      console.log(`✅ Successfully navigated to X.com`);
+    }
+
+    // CRITICAL: Bring the correct tab to focus and verify it's active
+    try {
+      await page.bringToFront();
+      await sleep(300); // Increased delay to ensure tab is active
+    } catch (e) {
+      console.log(`⚠️ Could not bring tab to front: ${e.message}`);
+      // If bringToFront fails, try to create a new page
+      try {
+        page = await browser.newPage();
+        console.log(`✅ Created new page instead`);
+        // Navigate new page to X.com
+        console.log(`🌐 Navigating new page to X.com...`);
+        await page.goto("https://x.com/home", {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        });
+      } catch (newPageError) {
+        console.log(`⚠️ Could not create new page: ${newPageError.message}`);
+        throw new Error("Cannot get a valid page to work with");
+      }
+    }
+
+    // CRITICAL: Verify page is still valid before proceeding
+    try {
+      const currentUrl = page.url();
+      console.log(`🔍 Current tab URL: ${currentUrl}`);
+
+      if (currentUrl.includes("x.com") || currentUrl.includes("twitter.com")) {
+        console.log(`✅ On X.com tab, ready to proceed!`);
+      } else {
+        console.log(`⚠️ Not on X.com tab (URL: ${currentUrl}), will navigate...`);
+        console.log(`🌐 Navigating to X.com...`);
+        await page.goto("https://x.com/home", {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        });
+        console.log(`✅ Successfully navigated to X.com`);
+      }
+    } catch (urlError) {
+      console.log(`⚠️ Could not get page URL: ${urlError.message}`);
+      throw new Error("Page is not usable, cannot proceed");
+    }
 
     await page.goto("https://x.com/home", { waitUntil: "networkidle2" });
     console.log("⚠️ Please log in manually in the opened browser...");

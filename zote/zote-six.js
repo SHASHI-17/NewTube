@@ -424,7 +424,67 @@ async function processProfile(
       }
     }
 
-    const page = pages[0]; // Use the existing first page instead of creating a new one
+    // Identify X.com tabs vs blank tabs
+    let xTab = null;
+    let blankTabs = [];
+
+    for (let i = 0; i < pages.length; i++) {
+      try {
+        const url = pages[i].url();
+        if (url.includes("x.com") || url.includes("twitter.com")) {
+          xTab = pages[i];
+        } else if (url === "about:blank" || url.includes("chrome://")) {
+          blankTabs.push(pages[i]);
+        }
+      } catch (e) {
+        blankTabs.push(pages[i]);
+      }
+    }
+
+    // Close all blank tabs
+    for (const tab of blankTabs) {
+      try {
+        await tab.close();
+      } catch (e) {
+        // Ignore errors closing tabs
+      }
+    }
+
+    let page = xTab || pages[0]; // Use X tab if found, otherwise first page
+
+    // CRITICAL: Bring the correct tab to focus and verify it's active
+    try {
+      await page.bringToFront();
+      await sleep(200); // Give it a moment to activate
+    } catch (e) {
+      console.log(`⚠️ Could not bring tab to front, continuing anyway...`);
+    }
+
+    // CRITICAL FIX: Check where we are BEFORE redirecting to tweet URL
+    // If we're on a blank tab, switch to X tab; if X tab, we're good to go
+    let currentUrl = page.url();
+    console.log(`🔍 Current tab URL: ${currentUrl}`);
+
+    // Check if we're on a blank page or chrome:// page
+    if (currentUrl === "about:blank" || currentUrl.includes("chrome://")) {
+      console.log(`⚠️ We're on a blank tab! Checking for X tab...`);
+
+      // If we found an X tab earlier, switch to it
+      if (xTab) {
+        console.log(`✅ Found X tab, switching to it...`);
+        page = xTab;
+        await page.bringToFront();
+        await sleep(200);
+        currentUrl = page.url();
+        console.log(`✅ Switched to X tab: ${currentUrl}`);
+      } else {
+        console.log(`⚠️ No X tab found, will navigate current tab to X.com`);
+      }
+    } else if (currentUrl.includes("x.com") || currentUrl.includes("twitter.com")) {
+      console.log(`✅ Already on X.com tab, good to go!`);
+    } else {
+      console.log(`⚠️ Unknown tab type, current URL: ${currentUrl}`);
+    }
 
     await page.setUserAgent(fingerprint.userAgent);
 
@@ -1159,7 +1219,67 @@ async function manualLogin(profileDir, profileName) {
       }
     }
 
-    const page = pages[0]; // Use the existing first page instead of creating a new one
+    // Identify X.com tabs vs blank tabs
+    let xTab = null;
+    let blankTabs = [];
+
+    for (let i = 0; i < pages.length; i++) {
+      try {
+        const url = pages[i].url();
+        if (url.includes("x.com") || url.includes("twitter.com")) {
+          xTab = pages[i];
+        } else if (url === "about:blank" || url.includes("chrome://")) {
+          blankTabs.push(pages[i]);
+        }
+      } catch (e) {
+        blankTabs.push(pages[i]);
+      }
+    }
+
+    // Close all blank tabs
+    for (const tab of blankTabs) {
+      try {
+        await tab.close();
+      } catch (e) {
+        // Ignore errors closing tabs
+      }
+    }
+
+    let page = xTab || pages[0]; // Use X tab if found, otherwise first page
+
+    // CRITICAL: Bring the correct tab to focus and verify it's active
+    try {
+      await page.bringToFront();
+      await sleep(200); // Give it a moment to activate
+    } catch (e) {
+      console.log(`⚠️ Could not bring tab to front, continuing anyway...`);
+    }
+
+    // CRITICAL FIX: Check where we are BEFORE redirecting to tweet URL
+    // If we're on a blank tab, switch to X tab; if X tab, we're good to go
+    let currentUrl = page.url();
+    console.log(`🔍 Current tab URL: ${currentUrl}`);
+
+    // Check if we're on a blank page or chrome:// page
+    if (currentUrl === "about:blank" || currentUrl.includes("chrome://")) {
+      console.log(`⚠️ We're on a blank tab! Checking for X tab...`);
+
+      // If we found an X tab earlier, switch to it
+      if (xTab) {
+        console.log(`✅ Found X tab, switching to it...`);
+        page = xTab;
+        await page.bringToFront();
+        await sleep(200);
+        currentUrl = page.url();
+        console.log(`✅ Switched to X tab: ${currentUrl}`);
+      } else {
+        console.log(`⚠️ No X tab found, will navigate current tab to X.com`);
+      }
+    } else if (currentUrl.includes("x.com") || currentUrl.includes("twitter.com")) {
+      console.log(`✅ Already on X.com tab, good to go!`);
+    } else {
+      console.log(`⚠️ Unknown tab type, current URL: ${currentUrl}`);
+    }
 
     await page.goto("https://x.com/home", { waitUntil: "networkidle2" });
     console.log("⚠️ Please log in manually in the opened browser...");

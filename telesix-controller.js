@@ -14,7 +14,6 @@ const AUTHORIZED_CHAT_IDS = ["1991164194", "1956483216"];
 const CONFIG_FILE = path.join(__dirname, "telesix-config.json");
 
 // ================== DEFAULT CONFIGURATION ==================
-// These defaults are used when config file doesn't exist or values are missing
 const DEFAULT_CONFIG = {
   stopUrl: "https://x.com/am1rax/status/2070511474037203135?s=20",
   repeat: 2,
@@ -33,10 +32,9 @@ function extractProfileUrl(stopUrl) {
   try {
     const url = new URL(stopUrl);
     const pathParts = url.pathname.split("/");
-    const username = pathParts[1]; // Get username from /username/status/123
+    const username = pathParts[1];
     return `${url.protocol}//${url.host}/${username}`;
   } catch (error) {
-    console.log("⚠️ Could not extract profile from stop URL:", error.message);
     return "https://x.com/am1rax";
   }
 }
@@ -44,8 +42,6 @@ function extractProfileUrl(stopUrl) {
 // ================== STATE MANAGEMENT ==================
 let currentProcess = null;
 let currentConfig = { ...DEFAULT_CONFIG };
-
-// User conversation states
 let userStates = {};
 
 // ================== CONFIG FILE FUNCTIONS ==================
@@ -55,7 +51,6 @@ function loadConfig() {
       const data = fs.readFileSync(CONFIG_FILE, "utf8");
       const loadedConfig = JSON.parse(data);
 
-      // Merge with defaults to ensure all properties exist
       currentConfig = {
         stopUrl: loadedConfig.stopUrl || DEFAULT_CONFIG.stopUrl,
         repeat: loadedConfig.repeat !== undefined ? loadedConfig.repeat : DEFAULT_CONFIG.repeat,
@@ -66,30 +61,25 @@ function loadConfig() {
           comment: loadedConfig.actions?.comment !== undefined ? loadedConfig.actions.comment : DEFAULT_CONFIG.actions.comment,
         },
       };
-
-      console.log("✅ Config loaded from file:", currentConfig);
     } catch (error) {
-      console.log("⚠️ Could not load config file, using defaults");
       currentConfig = { ...DEFAULT_CONFIG };
     }
   } else {
-    saveConfig(); // Create new config file with defaults
+    saveConfig();
   }
 }
 
 function saveConfig() {
   try {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentConfig, null, 2));
-    console.log("✅ Config saved:", currentConfig);
   } catch (error) {
-    console.error("❌ Could not save config:", error.message);
+    console.error("Config save error:", error.message);
   }
 }
 
 // ================== TELEGRAM BOT SETUP ==================
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
-// Check authorization
 function isAuthorized(chatId) {
   return AUTHORIZED_CHAT_IDS.includes(chatId.toString());
 }
@@ -110,52 +100,41 @@ function formatConfig() {
 
   const profileUrl = extractProfileUrl(currentConfig.stopUrl);
 
-  return `📋 *Current Configuration*
-━━━━━━━━━━━━━━━━━━━━━━━
+  return `⚙️ *Current Settings*
 
-👤 *Profile:* \`${profileUrl}\`
+👤 Profile: \`${profileUrl}\`
 
-🛑 *Stop Tweet:* \`${currentConfig.stopUrl || "Disabled (unlimited)"}\`
+🛑 Stop at: \`${currentConfig.stopUrl || "No limit"}\`
 
-🔁 *Repeat:* \`${currentConfig.repeat} time(s)\`
+🔁 Repeat: \`${currentConfig.repeat}x\`
 
-🎯 *Actions:* ${enabledActions}
-
-━━━━━━━━━━━━━━━━━━━━━━━`;
+🎯 Actions: ${enabledActions}`;
 }
 
-// Format status message
-function formatStatus() {
-  const status = currentProcess ? "🟢 *Running*" : "🔴 *Stopped*";
-  const pid = currentProcess ? currentProcess.pid : "N/A";
-  const uptime = currentProcess ?
-    `${Math.floor((Date.now() - currentProcess.startTime) / 1000)}s` :
-    "N/A";
+// Format main menu with status
+function getMainMenu() {
+  const statusEmoji = currentProcess ? "🟢" : "🔴";
+  const statusText = currentProcess ? "Running" : "Stopped";
+  const uptime = currentProcess
+    ? `${Math.floor((Date.now() - currentProcess.startTime) / 1000)}s`
+    : "--";
 
-  return `${status}
-━━━━━━━━━━━━━━━━━━━━━━━
+  return `✨ *Telesix Automation*
 
-📋 *Profile:* ${currentConfig.profile}
-🎯 *Repeat:* ${currentConfig.repeat} time(s)
-🆔 *Process ID:* ${pid}
-⏱️ *Uptime:* ${uptime}
+${statusEmoji} Status: *${statusText}* | ⏱️ ${uptime}s
 
-━━━━━━━━━━━━━━━━━━━━━━━`;
+${formatConfig()}
+
+💡 *Progress updates appear in notifications*`;
 }
 
 // ================== PROCESS MANAGEMENT ==================
 function startTelesix() {
-  // Check if process is actually running
   if (currentProcess && !currentProcess.killed) {
-    return {
-      success: false,
-      message: "⚠️ Already running! Use /restart to restart.",
-    };
+    return { success: false, message: "Already running! Use Restart instead." };
   }
 
   try {
-    console.log(`🚀 Starting telesix.js with config:`, currentConfig);
-
     const profileUrl = extractProfileUrl(currentConfig.stopUrl);
 
     const args = [
@@ -166,188 +145,166 @@ function startTelesix() {
       currentConfig.repeat.toString(),
     ];
 
-    // Add optional parameters if configured
     if (currentConfig.stopUrl) {
       args.push("--stop-url", currentConfig.stopUrl);
     }
 
-    // Convert actions to command line format
-    const actionFlags = [];
-    if (currentConfig.actions.like) actionFlags.push("--like");
-    if (currentConfig.actions.bookmark) actionFlags.push("--bookmark");
-    if (currentConfig.actions.retweet) actionFlags.push("--retweet");
-    if (currentConfig.actions.comment) actionFlags.push("--comment");
-    args.push(...actionFlags);
+    if (currentConfig.actions.like) args.push("--like");
+    if (currentConfig.actions.bookmark) args.push("--bookmark");
+    if (currentConfig.actions.retweet) args.push("--retweet");
+    if (currentConfig.actions.comment) args.push("--comment");
 
     currentProcess = spawn("node", args, {
       cwd: __dirname,
-      stdio: "inherit",
-      shell: false, // Changed to false for better process control
-      detached: false, // Don't create a new process group
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      detached: false,
     });
 
     currentProcess.startTime = Date.now();
     currentProcess.killed = false;
 
+    // Capture stdout for progress updates
+    currentProcess.stdout.on("data", (data) => {
+      const output = data.toString();
+      parseAndBroadcastProgress(output);
+    });
+
+    // Capture stderr for errors
+    currentProcess.stderr.on("data", (data) => {
+      const output = data.toString();
+      if (output.includes("Error") || output.includes("error")) {
+        broadcastMessage(`⚠️ Error: ${output.trim()}`);
+      }
+    });
+
     currentProcess.on("close", (code) => {
-      console.log(`📝 Process exited with code ${code}`);
       if (currentProcess) {
         currentProcess.killed = true;
         currentProcess = null;
+        broadcastMainMenuUpdate();
+        broadcastMessage(`✅ Process completed (exit code: ${code})`);
       }
-      broadcastMessage(`🔴 Process stopped (exit code: ${code})`);
     });
 
-    currentProcess.on("error", (error) => {
-      console.error("❌ Process error:", error);
+    currentProcess.on("error", () => {
       if (currentProcess) {
         currentProcess.killed = true;
         currentProcess = null;
-      }
-      broadcastMessage(`❌ Process error: ${error.message}`);
-    });
-
-    currentProcess.on("exit", (code, signal) => {
-      console.log(`📝 Process exit - code: ${code}, signal: ${signal}`);
-      if (currentProcess) {
-        currentProcess.killed = true;
-        currentProcess = null;
+        broadcastMainMenuUpdate();
+        broadcastMessage(`❌ Process error occurred`);
       }
     });
 
-    return {
-      success: true,
-      message: `✅ Started successfully!\n\n${formatStatus()}`,
-    };
+    return { success: true, message: "Started successfully!" };
   } catch (error) {
     currentProcess = null;
-    return {
-      success: false,
-      message: `❌ Failed to start: ${error.message}`,
-    };
+    return { success: false, message: `Failed: ${error.message}` };
   }
 }
 
 function stopTelesix() {
   if (!currentProcess) {
-    return {
-      success: false,
-      message: "⚠️ Not running!",
-    };
+    return { success: false, message: "Not running!" };
   }
 
   try {
     const pid = currentProcess.pid;
-    console.log(`🛑 Attempting to stop process ${pid}...`);
 
-    // Kill the Node process first
-    try {
-      currentProcess.kill("SIGTERM");
-      console.log("✅ SIGTERM sent to Node process");
-    } catch (e) {
-      console.log("⚠️ SIGTERM failed:", e.message);
-    }
+    try { currentProcess.kill("SIGTERM"); } catch (e) {}
+    try { currentProcess.kill("SIGINT"); } catch (e) {}
 
-    try {
-      currentProcess.kill("SIGINT");
-      console.log("✅ SIGINT sent to Node process");
-    } catch (e) {
-      console.log("⚠️ SIGINT failed:", e.message);
-    }
-
-    // Force kill the Node process on Windows
     if (process.platform === "win32") {
-      try {
-        execSync(`taskkill /F /PID ${pid}`, { stdio: "ignore" });
-        console.log("✅ Node process force killed via taskkill");
-      } catch (e) {
-        console.log("⚠️ taskkill on Node failed:", e.message);
-      }
-
-      // Kill all Chrome processes (Puppeteer browsers)
-      console.log("🔨 Killing all Chrome processes...");
-      try {
-        // Kill all chrome.exe processes
-        execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" });
-        console.log("✅ All Chrome processes killed");
-      } catch (e) {
-        console.log("⚠️ No Chrome processes to kill");
-      }
+      try { execSync(`taskkill /F /PID ${pid}`, { stdio: "ignore" }); } catch (e) {}
+      try { execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" }); } catch (e) {}
     } else {
-      // Unix-like systems - kill by process group
-      try {
-        execSync(`pkill -P ${pid}`, { stdio: "ignore" });
-        console.log("✅ Killed child processes");
-      } catch (e) {
-        console.log("⚠️ pkill failed:", e.message);
-      }
-
-      // Also kill Chrome on Unix
-      try {
-        execSync("pkill chrome", { stdio: "ignore" });
-        console.log("✅ Chrome processes killed on Unix");
-      } catch (e) {
-        console.log("⚠️ No Chrome processes on Unix");
-      }
+      try { execSync(`pkill -P ${pid}`, { stdio: "ignore" }); } catch (e) {}
+      try { execSync("pkill chrome", { stdio: "ignore" }); } catch (e) {}
     }
 
-    // Mark as killed and clear reference
     currentProcess.killed = true;
     currentProcess = null;
 
-    console.log("✅ All processes killed successfully");
-
-    return {
-      success: true,
-      message: `✅ *All processes stopped!*\n\n🔴 Killed Node process (PID: ${pid})\n🔴 Killed all Chrome browsers\n\n✨ Everything is completely stopped!`,
-    };
+    return { success: true, message: "Stopped completely!" };
   } catch (error) {
-    console.error("❌ Stop error:", error);
-    return {
-      success: false,
-      message: `❌ Failed to stop: ${error.message}`,
-    };
+    return { success: false, message: `Failed: ${error.message}` };
   }
 }
 
 function restartTelesix() {
   const stopResult = stopTelesix();
 
-  // Wait a moment before starting to ensure cleanup
   setTimeout(() => {
-    // Force clear any lingering process reference
     if (currentProcess) {
-      console.log("🧹 Cleaning up lingering process reference...");
       currentProcess.killed = true;
       currentProcess = null;
     }
-
-    // Extra cleanup: kill any remaining Chrome processes
     if (process.platform === "win32") {
-      try {
-        execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" });
-        console.log("🧹 Extra Chrome cleanup completed");
-      } catch (e) {
-        console.log("ℹ️ No Chrome processes to clean up");
-      }
+      try { execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" }); } catch (e) {}
     }
-
     const startResult = startTelesix();
-    broadcastMessage(`🔄 Restart result:\n${startResult.message}`);
-  }, 3000);
+    broadcastMainMenuUpdate();
+  }, 2000);
 
-  return {
-    success: true,
-    message: `🔄 Restarting...\n\n${stopResult.message}\n\n⏳ Waiting 3 seconds before start...`,
-  };
+  return { success: true, message: "Restarting..." };
 }
 
-// Broadcast message to all authorized users
+// Broadcast main menu update to all users
+function broadcastMainMenuUpdate() {
+  for (const chatId of AUTHORIZED_CHAT_IDS) {
+    sendMainMenu(chatId);
+  }
+}
+
+// Broadcast message to all users
 function broadcastMessage(message) {
   for (const chatId of AUTHORIZED_CHAT_IDS) {
     bot.sendMessage(chatId, message, { parse_mode: "Markdown" }).catch((error) => {
-      console.error(`❌ Could not send to ${chatId}:`, error.message);
+      console.error(`Broadcast to ${chatId} failed:`, error.message);
     });
+  }
+}
+
+// Parse progress output and send updates
+function parseAndBroadcastProgress(output) {
+  const lines = output.split("\n").filter(line => line.trim());
+
+  for (const line of lines) {
+    // Individual account success with tweet count
+    if (line.includes("— Success") && line.includes("tweets processed")) {
+      broadcastMessage(`${line.trim()}`);
+    }
+    // Batch completion
+    else if (line.includes("Batch complete") || line.includes("✅ Batch complete")) {
+      broadcastMessage(`${line.trim()}`);
+    }
+  }
+}
+
+// Send main menu with persistent control buttons
+async function sendMainMenu(chatId) {
+  try {
+    await bot.sendMessage(chatId, getMainMenu(), {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "▶️ Start", callback_data: "action_start" },
+            { text: "⏸️ Stop", callback_data: "action_stop" },
+          ],
+          [
+            { text: "🔄 Restart", callback_data: "action_restart" },
+            { text: "⚙️ Settings", callback_data: "menu_settings" },
+          ],
+          [
+            { text: "📊 Refresh", callback_data: "action_refresh" },
+            { text: "❓ Help", callback_data: "menu_help" },
+          ],
+        ],
+      },
+    });
+  } catch (error) {
+    console.error("Send menu error:", error.message);
   }
 }
 
@@ -356,180 +313,48 @@ bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
 
   if (!isAuthorized(chatId)) {
-    await bot.sendMessage(chatId, "❌ You are not authorized to use this bot.");
+    await bot.sendMessage(chatId, "You're not authorized to use this bot.");
     return;
   }
 
-  // Clear any existing state for this user
   delete userStates[chatId];
-
-  await bot.sendMessage(
-    chatId,
-    `🤖 *Telesix Controller*
-
-━━━━━━━━━━━━━━━━━━━━━━━
-
-${formatStatus()}
-
-*Authorized Users:* ${AUTHORIZED_CHAT_IDS.length}
-
-👤 *Chat IDs:* ${AUTHORIZED_CHAT_IDS.join(", ")}
-
-━━━━━━━━━━━━━━━━━━━━━━━`,
-    {
-      parse_mode: "Markdown",
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "⚡ Begin", callback_data: "cmd_begin" },
-            { text: "⏹️ Stop", callback_data: "cmd_stop" },
-          ],
-          [
-            { text: "🔄 Restart", callback_data: "cmd_restart" },
-            { text: "⚙️ Config", callback_data: "cmd_config" },
-          ],
-          [
-            { text: "📊 Status", callback_data: "cmd_status" },
-            { text: "❓ Help", callback_data: "cmd_help" },
-          ],
-        ],
-      },
-    }
-  );
-});
-
-// /begin - Actually start the automation
-bot.onText(/\/begin/, async (msg) => {
-  const chatId = msg.chat.id;
-
-  if (!isAuthorized(chatId)) {
-    await bot.sendMessage(chatId, "❌ You are not authorized to use this bot.");
-    return;
-  }
-
-  const result = startTelesix();
-  await bot.sendMessage(chatId, result.message, { parse_mode: "Markdown" });
-});
-
-bot.onText(/\/stop/, async (msg) => {
-  const chatId = msg.chat.id;
-
-  if (!isAuthorized(chatId)) {
-    await bot.sendMessage(chatId, "❌ You are not authorized to use this bot.");
-    return;
-  }
-
-  const result = stopTelesix();
-  await bot.sendMessage(chatId, result.message, { parse_mode: "Markdown" });
-});
-
-bot.onText(/\/restart/, async (msg) => {
-  const chatId = msg.chat.id;
-
-  if (!isAuthorized(chatId)) {
-    await bot.sendMessage(chatId, "❌ You are not authorized to use this bot.");
-    return;
-  }
-
-  const result = restartTelesix();
-  await bot.sendMessage(chatId, result.message, { parse_mode: "Markdown" });
-});
-
-bot.onText(/\/status/, async (msg) => {
-  const chatId = msg.chat.id;
-
-  if (!isAuthorized(chatId)) {
-    await bot.sendMessage(chatId, "❌ You are not authorized to use this bot.");
-    return;
-  }
-
-  await bot.sendMessage(chatId, formatStatus(), { parse_mode: "Markdown" });
+  await sendMainMenu(chatId);
 });
 
 bot.onText(/\/help/, async (msg) => {
   const chatId = msg.chat.id;
 
   if (!isAuthorized(chatId)) {
-    await bot.sendMessage(chatId, "❌ You are not authorized to use this bot.");
+    await bot.sendMessage(chatId, "You're not authorized to use this bot.");
     return;
   }
 
   await bot.sendMessage(
     chatId,
-    `🤖 *Telesix Controller Help*
+    `🤖 *Quick Help*
 
-━━━━━━━━━━━━━━━━━━━━━━━
-
-*Commands:*
-⚡ /begin - Start automation with current config
-⏹️ /stop - Stop automation immediately
-🔄 /restart - Stop and restart automation
-⚙️ /config - Open interactive configuration menu
-📊 /status - Show current running status
-❓ /help - Show this help message
-
-━━━━━━━━━━━━━━━━━━━━━━━
-
-*How to Use:*
-1. Use /config to check/change settings
-2. Use /begin to start automation
-3. Use /stop when done
-
-━━━━━━━━━━━━━━━━━━━━━━━
+*Controls:*
+▶️ Start - Begin automation
+⏸️ Stop - Stop automation
+🔄 Restart - Stop and start again
+⚙️ Settings - Change configuration
+📊 Refresh - Update status display
 
 *Configuration:*
-Use /config to interactively edit:
-• Profile URL
+Tap Settings to change:
+• Target profile/tweet
 • Repeat count
-• Stop URL (optional)
-• Max tweets limit (optional)
-• Enable/disable actions
+• Actions (like, bookmark, etc.)
 
-━━━━━━━━━━━━━━━━━━━━━━━
-
-*Default Configuration:*
-If you don't change anything, uses:
-• Profile: ${DEFAULT_CONFIG.profile}
-• Repeat: ${DEFAULT_CONFIG.repeat}x
-• Stop URL: ${DEFAULT_CONFIG.stopUrl}
-• Actions: Like only
-
-━━━━━━━━━━━━━━━━━━━━━━━`,
-    { parse_mode: "Markdown" }
-  );
-});
-
-// ================== CONFIGURATION MENU ==================
-bot.onText(/\/config/, async (msg) => {
-  const chatId = msg.chat.id;
-
-  if (!isAuthorized(chatId)) {
-    await bot.sendMessage(chatId, "❌ You are not authorized to use this bot.");
-    return;
-  }
-
-  // Clear any existing state
-  delete userStates[chatId];
-
-  await bot.sendMessage(
-    chatId,
-    `⚙️ *Configuration Menu*
-
-${formatConfig()}
-
-📝 *Tap a button to edit that setting:*
-
-*Note:* Profile URL is automatically extracted from the target tweet URL.`,
+*Tips:*
+• Menu stays updated automatically
+• Use Settings to customize everything
+• Status updates when process starts/stops`,
     {
       parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🎯 Edit Target Tweet", callback_data: "edit_stop_url" }],
-          [{ text: "🔁 Edit Repeat Count", callback_data: "edit_repeat" }],
-          [{ text: "🎯 Edit Actions", callback_data: "edit_actions" }],
-          [{ text: "💾 Save & Apply Config", callback_data: "save_config" }],
-          [{ text: "🔄 Reset to Defaults", callback_data: "reset_defaults" }],
-          [{ text: "❌ Close Menu", callback_data: "close_menu" }],
+          [{ text: "🔙 Back to Main", callback_data: "menu_main" }],
         ],
       },
     }
@@ -543,135 +368,196 @@ bot.on("callback_query", async (query) => {
 
   try {
     if (!isAuthorized(chatId)) {
-      await bot.answerCallbackQuery(query.id, { text: "❌ Not authorized" });
+      await bot.answerCallbackQuery(query.id, { text: "Not authorized" });
       return;
     }
 
-    // Handle different menu actions
+    // Main control actions
     switch (data) {
-      // Main menu commands
-      case "cmd_begin":
-        await bot.answerCallbackQuery(query.id);
-        const beginResult = startTelesix();
-        await bot.editMessageText(
-          beginResult.message,
-          {
+      case "action_start":
+        const startResult = startTelesix();
+        try {
+          await bot.editMessageText(getMainMenu(), {
             chat_id: chatId,
             message_id: query.message.message_id,
             parse_mode: "Markdown",
-          }
-        );
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "▶️ Start", callback_data: "action_start" },
+                  { text: "⏸️ Stop", callback_data: "action_stop" },
+                ],
+                [
+                  { text: "🔄 Restart", callback_data: "action_restart" },
+                  { text: "⚙️ Settings", callback_data: "menu_settings" },
+                ],
+                [
+                  { text: "📊 Refresh", callback_data: "action_refresh" },
+                  { text: "❓ Help", callback_data: "menu_help" },
+                ],
+              ],
+            },
+          });
+        } catch (e) {
+          // Message didn't need update, that's fine
+        }
+        await bot.answerCallbackQuery(query.id);
+        await bot.sendMessage(chatId, startResult.message);
         break;
 
-      case "cmd_stop":
-        await bot.answerCallbackQuery(query.id);
+      case "action_stop":
         const stopResult = stopTelesix();
-        await bot.editMessageText(
-          stopResult.message,
-          {
+        try {
+          await bot.editMessageText(getMainMenu(), {
             chat_id: chatId,
             message_id: query.message.message_id,
             parse_mode: "Markdown",
-          }
-        );
-        break;
-
-      case "cmd_restart":
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "▶️ Start", callback_data: "action_start" },
+                  { text: "⏸️ Stop", callback_data: "action_stop" },
+                ],
+                [
+                  { text: "🔄 Restart", callback_data: "action_restart" },
+                  { text: "⚙️ Settings", callback_data: "menu_settings" },
+                ],
+                [
+                  { text: "📊 Refresh", callback_data: "action_refresh" },
+                  { text: "❓ Help", callback_data: "menu_help" },
+                ],
+              ],
+            },
+          });
+        } catch (e) {
+          // Message didn't need update, that's fine
+        }
         await bot.answerCallbackQuery(query.id);
+        await bot.sendMessage(chatId, stopResult.message);
+        break;
+
+      case "action_restart":
         const restartResult = restartTelesix();
-        await bot.editMessageText(
-          restartResult.message,
-          {
+        try {
+          await bot.editMessageText(getMainMenu(), {
             chat_id: chatId,
             message_id: query.message.message_id,
             parse_mode: "Markdown",
-          }
-        );
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "▶️ Start", callback_data: "action_start" },
+                  { text: "⏸️ Stop", callback_data: "action_stop" },
+                ],
+                [
+                  { text: "🔄 Restart", callback_data: "action_restart" },
+                  { text: "⚙️ Settings", callback_data: "menu_settings" },
+                ],
+                [
+                  { text: "📊 Refresh", callback_data: "action_refresh" },
+                  { text: "❓ Help", callback_data: "menu_help" },
+                ],
+              ],
+            },
+          });
+        } catch (e) {
+          // Message didn't need update, that's fine
+        }
+        await bot.answerCallbackQuery(query.id);
+        await bot.sendMessage(chatId, restartResult.message);
         break;
 
-      case "cmd_config":
+      case "action_refresh":
+        try {
+          await bot.editMessageText(getMainMenu(), {
+            chat_id: chatId,
+            message_id: query.message.message_id,
+            parse_mode: "Markdown",
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "▶️ Start", callback_data: "action_start" },
+                  { text: "⏸️ Stop", callback_data: "action_stop" },
+                ],
+                [
+                  { text: "🔄 Restart", callback_data: "action_restart" },
+                  { text: "⚙️ Settings", callback_data: "menu_settings" },
+                ],
+                [
+                  { text: "📊 Refresh", callback_data: "action_refresh" },
+                  { text: "❓ Help", callback_data: "menu_help" },
+                ],
+              ],
+            },
+          });
+        } catch (e) {
+          // Message didn't need update, that's fine
+        }
+        await bot.answerCallbackQuery(query.id);
+        await bot.sendMessage(chatId, getMainMenu());
+        break;
+
+      case "menu_main":
+        await bot.answerCallbackQuery(query.id);
+        await bot.editMessageText(getMainMenu(), {
+          chat_id: chatId,
+          message_id: query.message.message_id,
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "▶️ Start", callback_data: "action_start" },
+                { text: "⏸️ Stop", callback_data: "action_stop" },
+              ],
+              [
+                { text: "🔄 Restart", callback_data: "action_restart" },
+                { text: "⚙️ Settings", callback_data: "menu_settings" },
+              ],
+              [
+                { text: "📊 Refresh", callback_data: "action_refresh" },
+                { text: "❓ Help", callback_data: "menu_help" },
+              ],
+            ],
+          },
+        });
+        break;
+
+      case "menu_settings":
         await bot.answerCallbackQuery(query.id);
         delete userStates[chatId];
         await bot.editMessageText(
-          `⚙️ *Configuration Menu*\n\n${formatConfig()}\n\n📝 *Tap a button to edit that setting:*`,
+          `⚙️ *Settings*\n\n${formatConfig()}\n\nChoose what to edit:`,
           {
             chat_id: chatId,
             message_id: query.message.message_id,
             parse_mode: "Markdown",
             reply_markup: {
               inline_keyboard: [
-                [{ text: "🎯 Edit Target Tweet", callback_data: "edit_stop_url" }],
-                [{ text: "🔁 Edit Repeat Count", callback_data: "edit_repeat" }],
-                [{ text: "🎯 Edit Actions", callback_data: "edit_actions" }],
-                [{ text: "💾 Save & Apply Config", callback_data: "save_config" }],
-                [{ text: "🔄 Reset to Defaults", callback_data: "reset_defaults" }],
-                [{ text: "❌ Close Menu", callback_data: "close_menu" }],
+                [{ text: "🎯 Change Target Tweet", callback_data: "edit_stop_url" }],
+                [{ text: "🔁 Change Repeat Count", callback_data: "edit_repeat" }],
+                [{ text: "✅ Toggle Actions", callback_data: "edit_actions" }],
+                [{ text: "🔄 Reset Defaults", callback_data: "reset_defaults" }],
+                [{ text: "💾 Save & Back", callback_data: "save_settings" }],
+                [{ text: "❌ Cancel", callback_data: "menu_main" }],
               ],
             },
           }
         );
         break;
 
-      case "cmd_status":
+      case "menu_help":
         await bot.answerCallbackQuery(query.id);
         await bot.editMessageText(
-          formatStatus(),
+          `🤖 *Quick Help*\n\n*Controls:*\n▶️ Start - Begin automation\n⏸️ Stop - Stop automation  \n🔄 Restart - Stop and start again\n⚙️ Settings - Change configuration\n📊 Refresh - Update status display\n\n*Configuration:*\nTap Settings to change:\n• Target profile/tweet\n• Repeat count\n• Actions (like, bookmark, etc.)\n\n*Tips:*\n• Menu stays updated automatically\n• Use Settings to customize everything\n• Status updates when process starts/stops`,
           {
             chat_id: chatId,
             message_id: query.message.message_id,
             parse_mode: "Markdown",
-          }
-        );
-        break;
-
-      case "cmd_help":
-        await bot.answerCallbackQuery(query.id);
-        await bot.editMessageText(
-          `🤖 *Telesix Controller Help*
-
-━━━━━━━━━━━━━━━━━━━━━━━
-
-*Commands:*
-⚡ /begin - Start automation with current config
-⏹️ /stop - Stop automation immediately
-🔄 /restart - Stop and restart automation
-⚙️ /config - Open interactive configuration menu
-📊 /status - Show current running status
-❓ /help - Show this help message
-
-━━━━━━━━━━━━━━━━━━━━━━━
-
-*How to Use:*
-1. Use /config to check/change settings
-2. Use /begin to start automation
-3. Use /stop when done
-
-━━━━━━━━━━━━━━━━━━━━━━━
-
-*Configuration:*
-Use /config to interactively edit:
-• Target Tweet URL (profile extracted automatically)
-• Repeat count
-• Enable/disable actions
-
-━━━━━━━━━━━━━━━━━━━━━━━
-
-*Default Configuration:*
-• Target Tweet: ${DEFAULT_CONFIG.stopUrl}
-• Repeat: ${DEFAULT_CONFIG.repeat}x
-• Actions: Like only
-
-━━━━━━━━━━━━━━━━━━━━━━━
-
-*Authorized Users:* ${AUTHORIZED_CHAT_IDS.length}
-
-👤 *Chat IDs:* ${AUTHORIZED_CHAT_IDS.join(", ")}
-
-━━━━━━━━━━━━━━━━━━━━━━━`,
-          {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "🔙 Back to Main", callback_data: "menu_main" }],
+              ],
+            },
           }
         );
         break;
@@ -680,7 +566,7 @@ Use /config to interactively edit:
         await bot.answerCallbackQuery(query.id);
         userStates[chatId] = { step: "waiting_repeat" };
         await bot.editMessageText(
-          `📝 *Edit Repeat Count*\n\nPlease send the new repeat count (number):\n\nCurrent: \`${currentConfig.repeat}\`\n\nSend /cancel to stop.`,
+          `📝 *New Repeat Count*\n\nCurrent: \`${currentConfig.repeat}\`\n\nSend a number (0 or higher).\nSend /cancel to go back.`,
           {
             chat_id: chatId,
             message_id: query.message.message_id,
@@ -693,8 +579,7 @@ Use /config to interactively edit:
         await bot.answerCallbackQuery(query.id);
         userStates[chatId] = { step: "waiting_stop_url" };
         await bot.editMessageText(
-          "📝 *Edit Target Tweet*\n\nSend the tweet URL where you want to stop.\n\nProfile will be extracted automatically.\n\nExample: https://x.com/user/status/123456\n\nCurrent: " +
-          `\`${currentConfig.stopUrl || "Disabled"}\`\n\nSend /cancel to stop.`,
+          `📝 *New Target Tweet*\n\nCurrent: \`${currentConfig.stopUrl || "No limit"}\`\n\nSend a tweet URL or "none" for no limit.\nSend /cancel to go back.`,
           {
             chat_id: chatId,
             message_id: query.message.message_id,
@@ -706,7 +591,7 @@ Use /config to interactively edit:
       case "edit_actions":
         await bot.answerCallbackQuery(query.id);
         await bot.editMessageText(
-          `📝 *Edit Actions*\n\n${formatConfig()}\n\n📝 Toggle actions below:`,
+          `✅ *Toggle Actions*\n\n${formatConfig()}\n\nTap to toggle:`,
           {
             chat_id: chatId,
             message_id: query.message.message_id,
@@ -733,8 +618,8 @@ Use /config to interactively edit:
                     callback_data: "toggle_comment"
                   },
                 ],
-                [{ text: "💾 Save & Back", callback_data: "save_actions" }],
-                [{ text: "❌ Cancel", callback_data: "cancel_actions" }],
+                [{ text: "💾 Save & Back", callback_data: "save_settings" }],
+                [{ text: "❌ Cancel", callback_data: "menu_main" }],
               ],
             },
           }
@@ -744,7 +629,7 @@ Use /config to interactively edit:
       case "toggle_like":
         currentConfig.actions.like = !currentConfig.actions.like;
         await bot.answerCallbackQuery(query.id, {
-          text: currentConfig.actions.like ? "❤️ Like enabled" : "❤️ Like disabled"
+          text: currentConfig.actions.like ? "❤️ On" : "❤️ Off"
         });
         await updateActionsMenu(query.message, chatId);
         break;
@@ -752,7 +637,7 @@ Use /config to interactively edit:
       case "toggle_bookmark":
         currentConfig.actions.bookmark = !currentConfig.actions.bookmark;
         await bot.answerCallbackQuery(query.id, {
-          text: currentConfig.actions.bookmark ? "🔖 Bookmark enabled" : "🔖 Bookmark disabled"
+          text: currentConfig.actions.bookmark ? "🔖 On" : "🔖 Off"
         });
         await updateActionsMenu(query.message, chatId);
         break;
@@ -760,7 +645,7 @@ Use /config to interactively edit:
       case "toggle_retweet":
         currentConfig.actions.retweet = !currentConfig.actions.retweet;
         await bot.answerCallbackQuery(query.id, {
-          text: currentConfig.actions.retweet ? "🔁 Retweet enabled" : "🔁 Retweet disabled"
+          text: currentConfig.actions.retweet ? "🔁 On" : "🔁 Off"
         });
         await updateActionsMenu(query.message, chatId);
         break;
@@ -768,141 +653,72 @@ Use /config to interactively edit:
       case "toggle_comment":
         currentConfig.actions.comment = !currentConfig.actions.comment;
         await bot.answerCallbackQuery(query.id, {
-          text: currentConfig.actions.comment ? "✍️ Comment enabled" : "✍️ Comment disabled"
+          text: currentConfig.actions.comment ? "✍️ On" : "✍️ Off"
         });
         await updateActionsMenu(query.message, chatId);
         break;
 
-      case "save_actions":
+      case "save_settings":
         saveConfig();
-        await bot.answerCallbackQuery(query.id, { text: "✅ Actions saved!" });
-        // Return to main menu
-        await bot.editMessageText(
-          `⚙️ *Configuration Menu*\n\n${formatConfig()}\n\n💾 *Actions saved successfully!*`,
-          {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: "🎯 Edit Target Tweet", callback_data: "edit_stop_url" }],
-                [{ text: "🔁 Edit Repeat Count", callback_data: "edit_repeat" }],
-                [{ text: "🎯 Edit Actions", callback_data: "edit_actions" }],
-                [{ text: "💾 Save & Apply Config", callback_data: "save_config" }],
-                [{ text: "🔄 Reset to Defaults", callback_data: "reset_defaults" }],
-                [{ text: "❌ Close Menu", callback_data: "close_menu" }],
+        await bot.answerCallbackQuery(query.id, { text: "Settings saved!" });
+        await bot.editMessageText(getMainMenu(), {
+          chat_id: chatId,
+          message_id: query.message.message_id,
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "▶️ Start", callback_data: "action_start" },
+                { text: "⏸️ Stop", callback_data: "action_stop" },
               ],
-            },
-          }
-        );
-        delete userStates[chatId];
-        break;
-
-      case "cancel_actions":
-        await bot.answerCallbackQuery(query.id, { text: "❌ Cancelled" });
-        // Return to main menu
-        await bot.editMessageText(
-          `⚙️ *Configuration Menu*\n\n${formatConfig()}\n\n❌ *Action changes cancelled*`,
-          {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: "🎯 Edit Target Tweet", callback_data: "edit_stop_url" }],
-                [{ text: "🔁 Edit Repeat Count", callback_data: "edit_repeat" }],
-                [{ text: "🎯 Edit Actions", callback_data: "edit_actions" }],
-                [{ text: "💾 Save & Apply Config", callback_data: "save_config" }],
-                [{ text: "🔄 Reset to Defaults", callback_data: "reset_defaults" }],
-                [{ text: "❌ Close Menu", callback_data: "close_menu" }],
+              [
+                { text: "🔄 Restart", callback_data: "action_restart" },
+                { text: "⚙️ Settings", callback_data: "menu_settings" },
               ],
-            },
-          }
-        );
-        delete userStates[chatId];
-        break;
-
-      case "save_config":
-        saveConfig();
-        await bot.answerCallbackQuery(query.id, { text: "✅ Configuration saved!" });
-        await bot.editMessageText(
-          `⚙️ *Configuration Menu*\n\n${formatConfig()}\n\n💾 *Configuration saved successfully!*`,
-          {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: "⚡ Begin", callback_data: "cmd_begin" },
-                  { text: "⏹️ Stop", callback_data: "cmd_stop" },
-                ],
-                [
-                  { text: "🔄 Restart", callback_data: "cmd_restart" },
-                  { text: "⚙️ Config", callback_data: "cmd_config" },
-                ],
+              [
+                { text: "📊 Refresh", callback_data: "action_refresh" },
+                { text: "❓ Help", callback_data: "menu_help" },
               ],
-            },
-          }
-        );
+            ],
+          },
+        });
         delete userStates[chatId];
         break;
 
       case "reset_defaults":
         currentConfig = { ...DEFAULT_CONFIG };
         saveConfig();
-        await bot.answerCallbackQuery(query.id, { text: "🔄 Reset to defaults!" });
-        await bot.editMessageText(
-          `⚙️ *Configuration Menu*\n\n${formatConfig()}\n\n🔄 *Reset to default values*`,
-          {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: "🎯 Edit Target Tweet", callback_data: "edit_stop_url" }],
-                [{ text: "🔁 Edit Repeat Count", callback_data: "edit_repeat" }],
-                [{ text: "🎯 Edit Actions", callback_data: "edit_actions" }],
-                [{ text: "💾 Save & Apply Config", callback_data: "save_config" }],
-                [{ text: "🔄 Reset to Defaults", callback_data: "reset_defaults" }],
-                [{ text: "❌ Close Menu", callback_data: "close_menu" }],
+        await bot.answerCallbackQuery(query.id, { text: "Reset to defaults!" });
+        await bot.editMessageText(getMainMenu(), {
+          chat_id: chatId,
+          message_id: query.message.message_id,
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "▶️ Start", callback_data: "action_start" },
+                { text: "⏸️ Stop", callback_data: "action_stop" },
               ],
-            },
-          }
-        );
-        break;
-
-      case "close_menu":
-        await bot.answerCallbackQuery(query.id, { text: "✅ Menu closed" });
-        await bot.editMessageText(
-          `✅ *Configuration saved*\n\nUse /config to open configuration again, or /begin to start automation.`,
-          {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: "Markdown",
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: "⚡ Begin", callback_data: "cmd_begin" },
-                  { text: "⏹️ Stop", callback_data: "cmd_stop" },
-                ],
-                [
-                  { text: "⚙️ Config", callback_data: "cmd_config" },
-                  { text: "📊 Status", callback_data: "cmd_status" },
-                ],
+              [
+                { text: "🔄 Restart", callback_data: "action_restart" },
+                { text: "⚙️ Settings", callback_data: "menu_settings" },
               ],
-            },
-          }
-        );
+              [
+                { text: "📊 Refresh", callback_data: "action_refresh" },
+                { text: "❓ Help", callback_data: "menu_help" },
+              ],
+            ],
+          },
+        });
         delete userStates[chatId];
         break;
 
       default:
-        await bot.answerCallbackQuery(query.id, { text: "❌ Unknown action" });
+        await bot.answerCallbackQuery(query.id, { text: "Unknown action" });
     }
   } catch (error) {
-    console.error("❌ Callback query error:", error.message);
-    await bot.answerCallbackQuery(query.id, { text: "❌ Error occurred" });
+    console.error("Callback error:", error.message);
+    await bot.answerCallbackQuery(query.id, { text: "Error occurred" });
   }
 });
 
@@ -932,23 +748,22 @@ async function updateActionsMenu(message, chatId) {
               callback_data: "toggle_comment"
             },
           ],
-          [{ text: "💾 Save & Back", callback_data: "save_actions" }],
-          [{ text: "❌ Cancel", callback_data: "cancel_actions" }],
+          [{ text: "💾 Save & Back", callback_data: "save_settings" }],
+          [{ text: "❌ Cancel", callback_data: "menu_main" }],
         ],
       },
       { chat_id: chatId, message_id: message.message_id }
     );
   } catch (error) {
-    console.error("❌ Error updating menu:", error.message);
+    console.error("Update actions error:", error.message);
   }
 }
 
-// ================== MESSAGE HANDLER (for text input) ==================
+// ================== MESSAGE HANDLER ==================
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
-  // Skip non-text messages and commands
   if (!text || text.startsWith("/")) return;
 
   if (!isAuthorized(chatId)) {
@@ -957,10 +772,7 @@ bot.on("message", async (msg) => {
 
   const state = userStates[chatId];
   if (!state) {
-    await bot.sendMessage(
-      chatId,
-      "❓ Send /config to configure, or /begin to start automation."
-    );
+    await bot.sendMessage(chatId, "Use the menu buttons or /start");
     return;
   }
 
@@ -972,16 +784,15 @@ bot.on("message", async (msg) => {
           currentConfig.repeat = repeat;
           saveConfig();
           delete userStates[chatId];
-          await bot.sendMessage(
-            chatId,
-            `✅ *Repeat count updated!*\n\n🔁 New count: \`${repeat}\`\n\nUse /config to continue configuring.`,
-            { parse_mode: "Markdown" }
-          );
+          await bot.sendMessage(chatId, `Repeat set to ${repeat}x`, {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "🔙 Back to Main", callback_data: "menu_main" }],
+              ],
+            },
+          });
         } else {
-          await bot.sendMessage(
-            chatId,
-            "❌ Invalid number. Please send a valid number (0 or greater).\n\nSend /cancel to stop."
-          );
+          await bot.sendMessage(chatId, "Send a valid number (0 or higher). /cancel to go back.");
         }
         break;
 
@@ -990,125 +801,72 @@ bot.on("message", async (msg) => {
           currentConfig.stopUrl = null;
           saveConfig();
           delete userStates[chatId];
-          await bot.sendMessage(
-            chatId,
-            "✅ *Target tweet disabled!*\n\nWill now scroll indefinitely.\n\nUse /config to continue configuring.",
-            { parse_mode: "Markdown" }
-          );
+          await bot.sendMessage(chatId, "Target tweet removed - no limit set", {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "🔙 Back to Main", callback_data: "menu_main" }],
+              ],
+            },
+          });
         } else if (text.startsWith("http")) {
           currentConfig.stopUrl = text;
           saveConfig();
           delete userStates[chatId];
-
           const profileUrl = extractProfileUrl(text);
-          await bot.sendMessage(
-            chatId,
-            `✅ *Target tweet updated!*\n\n🛑 Tweet URL: \`${text}\`\n👤 Extracted Profile: \`${profileUrl}\`\n\nUse /config to continue configuring.`,
-            { parse_mode: "Markdown" }
-          );
+          await bot.sendMessage(chatId, `Target updated!\nProfile: ${profileUrl}`, {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "🔙 Back to Main", callback_data: "menu_main" }],
+              ],
+            },
+          });
         } else {
-          await bot.sendMessage(
-            chatId,
-            "❌ Invalid input. Send a valid URL or \"none\" to disable.\n\nSend /cancel to stop."
-          );
+          await bot.sendMessage(chatId, 'Send a URL or "none". /cancel to go back.');
         }
         break;
 
       default:
         delete userStates[chatId];
-        await bot.sendMessage(chatId, "❌ Invalid operation. Please use /config to start over.");
+        await bot.sendMessage(chatId, "Use /start to begin");
     }
   } catch (error) {
-    console.error("❌ Message handler error:", error.message);
-    await bot.sendMessage(chatId, "❌ Error processing your input. Please try again.");
+    console.error("Message handler error:", error.message);
+    await bot.sendMessage(chatId, "Error processing input");
   }
 });
 
 // ================== ERROR HANDLING ==================
 bot.on("polling_error", (error) => {
-  console.error("❌ Telegram polling error:", error.message);
+  console.error("Polling error:", error.message);
 });
 
 // ================== STARTUP ==================
-console.log("🤖 Telesix Controller starting...");
 loadConfig();
-console.log("✅ Controller ready!");
-console.log("📡 Listening for Telegram commands...");
+console.log("Telesix Controller ready");
 
-// Graceful shutdown handler
+// Graceful shutdown
 async function gracefulShutdown(signal) {
-  console.log(`\n🛑 Received ${signal} - Shutting down controller...`);
-
   if (currentProcess) {
-    console.log("🛑 Stopping telesix.js...");
+    try { currentProcess.kill("SIGTERM"); } catch (e) {}
+    try { currentProcess.kill("SIGINT"); } catch (e) {}
 
-    try {
-      currentProcess.kill("SIGTERM");
-    } catch (e) {
-      console.log("⚠️ SIGTERM failed:", e.message);
-    }
-
-    try {
-      currentProcess.kill("SIGINT");
-    } catch (e) {
-      console.log("⚠️ SIGINT failed:", e.message);
-    }
-
-    // Kill all processes on Windows
     if (process.platform === "win32") {
-      try {
-        execSync(`taskkill /F /PID ${currentProcess.pid}`, { stdio: "ignore" });
-        console.log("✅ Node process killed");
-      } catch (e) {
-        console.log("⚠️ taskkill failed:", e.message);
-      }
-
-      try {
-        execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" });
-        console.log("✅ All Chrome processes killed");
-      } catch (e) {
-        console.log("⚠️ No Chrome processes to kill");
-      }
+      try { execSync(`taskkill /F /PID ${currentProcess.pid}`, { stdio: "ignore" }); } catch (e) {}
+      try { execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" }); } catch (e) {}
     } else {
-      // Unix systems
-      try {
-        execSync(`pkill -P ${currentProcess.pid}`, { stdio: "ignore" });
-        console.log("✅ Child processes killed");
-      } catch (e) {
-        console.log("⚠️ pkill failed:", e.message);
-      }
-
-      try {
-        execSync("pkill chrome", { stdio: "ignore" });
-        console.log("✅ Chrome processes killed");
-      } catch (e) {
-        console.log("⚠️ No Chrome processes");
-      }
+      try { execSync(`pkill -P ${currentProcess.pid}`, { stdio: "ignore" }); } catch (e) {}
+      try { execSync("pkill chrome", { stdio: "ignore" }); } catch (e) {}
     }
   }
 
-  console.log("🛑 Stopping Telegram bot...");
-  try {
-    bot.stopPolling();
-  } catch (e) {
-    console.log("⚠️ Error stopping bot:", e.message);
-  }
-
-  console.log("✅ Shutdown complete");
+  try { bot.stopPolling(); } catch (e) {}
   process.exit(0);
 }
 
-// Handle multiple shutdown signals
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));        // Ctrl+C
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));      // kill command
-process.on("SIGHUP", () => gracefulShutdown("SIGHUP"));        // Terminal closed
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGHUP", () => gracefulShutdown("SIGHUP"));
 
-// Windows-specific signals
 if (process.platform === "win32") {
-  process.on("SIGBREAK", () => gracefulShutdown("SIGBREAK"));  // Windows console break
+  process.on("SIGBREAK", () => gracefulShutdown("SIGBREAK"));
 }
-
-console.log("✅ Controller ready!");
-console.log("👤 Authorized users:", AUTHORIZED_CHAT_IDS.join(", "));
-console.log("📡 Listening for Telegram commands...");
-console.log("\n✨ Bot is ready! Send /start in Telegram to see the menu");

@@ -26,25 +26,25 @@ function parseArgs() {
   };
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--profile' && args[i + 1]) {
+    if (args[i] === "--profile" && args[i + 1]) {
       config.profile = args[i + 1];
       i++;
-    } else if (args[i] === '--repeat' && args[i + 1]) {
+    } else if (args[i] === "--repeat" && args[i + 1]) {
       config.repeat = parseInt(args[i + 1]);
       i++;
-    } else if (args[i] === '--stop-url' && args[i + 1]) {
+    } else if (args[i] === "--stop-url" && args[i + 1]) {
       config.stopUrl = args[i + 1];
       i++;
-    } else if (args[i] === '--max-tweets' && args[i + 1]) {
+    } else if (args[i] === "--max-tweets" && args[i + 1]) {
       config.maxTweets = parseInt(args[i + 1]);
       i++;
-    } else if (args[i] === '--like') {
+    } else if (args[i] === "--like") {
       config.actions.like = true;
-    } else if (args[i] === '--bookmark') {
+    } else if (args[i] === "--bookmark") {
       config.actions.bookmark = true;
-    } else if (args[i] === '--retweet') {
+    } else if (args[i] === "--retweet") {
       config.actions.retweet = true;
-    } else if (args[i] === '--comment') {
+    } else if (args[i] === "--comment") {
       config.actions.comment = true;
     }
   }
@@ -57,7 +57,8 @@ const cliArgs = parseArgs();
 // ================== CONFIG ==================
 // Use CLI args if provided, otherwise use defaults (matching controller defaults)
 const PROFILE_URL = cliArgs.profile || "https://x.com/am1rax";
-const STOP_AT_TWEET_URL = cliArgs.stopUrl || "https://x.com/am1rax/status/2070511474037203135?s=20";
+const STOP_AT_TWEET_URL =
+  cliArgs.stopUrl || "https://x.com/am1rax/status/2070511474037203135?s=20";
 const MAX_TWEETS = cliArgs.maxTweets || null;
 
 const BASE_USER_DATA_DIR =
@@ -68,13 +69,13 @@ const BASE_USER_DATA_DIR =
 const ACCOUNT_NAMES = [
   "adore",
   "orange",
-  // "bluemoon",
+  "bluemoon",
   "kiran",
   "hibye",
   "inyvix",
-  "bae",
-  "anchinka",
-  "meera",
+  // "bae",
+  "nyra",
+  "arra",
   // "ivy",
   // "ixyi",
   // "water1",
@@ -92,7 +93,7 @@ const REPEAT_COUNT = cliArgs.repeat || 2; // Number of times to repeat (0 = run 
 // ================== ACTION CONFIG ==================
 // Use CLI args if provided, otherwise use default (like only, matching controller default)
 // If no CLI action flags are provided, default to like only
-const hasActionFlags = Object.values(cliArgs.actions).some(v => v === true);
+const hasActionFlags = Object.values(cliArgs.actions).some((v) => v === true);
 const DO_LIKE = hasActionFlags ? cliArgs.actions.like : true;
 const DO_BOOKMARK = hasActionFlags ? cliArgs.actions.bookmark : false;
 const DO_RETWEET = hasActionFlags ? cliArgs.actions.retweet : false;
@@ -347,19 +348,132 @@ async function processProfile(
   });
 
   try {
-    // Close all extra tabs that Chrome restored from previous session
-    const pages = await browser.pages();
-    if (pages.length > 1) {
-      console.log(
-        `🧹 Closing ${pages.length - 1} extra tabs restored from previous session...`,
-      );
-      // Keep the first page, close the rest
-      for (let i = 1; i < pages.length; i++) {
-        await pages[i].close();
+    // CRITICAL FIX: Give Chrome time to fully launch and restore tabs
+    console.log(`⏳ Waiting for Chrome to fully launch...`);
+    await sleep(2000); // Wait 2 seconds for Chrome to stabilize
+
+    // CRITICAL FIX: Check for X.com tabs with retry mechanism (max 4 retries)
+    console.log(`🔍 Checking for restored X.com tabs...`);
+
+    let xTab = null;
+    let pages = [];
+    let retries = 0;
+    const maxRetries = 4; // 4 retries is enough
+
+    // Retry loop to find X.com tab with delays between attempts
+    while (retries < maxRetries && !xTab) {
+      try {
+        pages = await browser.pages();
+
+        // Identify X.com tabs vs blank tabs
+        let blankTabs = [];
+
+        for (let i = 0; i < pages.length; i++) {
+          try {
+            const url = pages[i].url();
+            if (url.includes("x.com") || url.includes("twitter.com")) {
+              xTab = pages[i];
+              console.log(`✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`);
+              break;
+            } else if (url === "about:blank" || url.includes("chrome://")) {
+              blankTabs.push(pages[i]);
+            }
+          } catch (e) {
+            blankTabs.push(pages[i]);
+          }
+        }
+
+        if (xTab) {
+          // Close all blank tabs
+          for (const tab of blankTabs) {
+            try {
+              await tab.close();
+            } catch (e) {
+              // Ignore errors closing tabs
+            }
+          }
+          break;
+        }
+
+        // X tab not found, wait and retry
+        retries++;
+        if (retries < maxRetries) {
+          console.log(`⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`);
+          await sleep(1000); // Wait 1 second before retry
+        }
+      } catch (error) {
+        console.log(`⚠️ Error checking pages: ${error.message}, retrying...`);
+        retries++;
+        if (retries < maxRetries) {
+          await sleep(1000);
+        }
       }
     }
 
-    const page = pages[0]; // Use the existing first page instead of creating a new one
+    // Use X tab if found, otherwise get a blank tab and navigate to X.com
+    let page;
+    if (xTab) {
+      console.log(`✅ Using restored X.com tab`);
+      page = xTab;
+    } else {
+      console.log(`⚠️ No X.com tab found after ${maxRetries} retries`);
+      console.log(`📝 Will navigate blank tab to X.com...`);
+
+      // Get existing pages or create new one
+      pages = await browser.pages();
+      page = pages[0] || (await browser.newPage());
+
+      // Navigate to X.com and wait for it to load
+      console.log(`🌐 Navigating to X.com...`);
+      await page.goto("https://x.com/home", {
+        waitUntil: "networkidle2",
+        timeout: 60000,
+      });
+      console.log(`✅ Successfully navigated to X.com`);
+    }
+
+    // CRITICAL: Bring the correct tab to focus and verify it's active
+    try {
+      await page.bringToFront();
+      await sleep(300); // Increased delay to ensure tab is active
+    } catch (e) {
+      console.log(`⚠️ Could not bring tab to front: ${e.message}`);
+      // If bringToFront fails, try to create a new page
+      try {
+        page = await browser.newPage();
+        console.log(`✅ Created new page instead`);
+        // Navigate new page to X.com
+        console.log(`🌐 Navigating new page to X.com...`);
+        await page.goto("https://x.com/home", {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        });
+      } catch (newPageError) {
+        console.log(`⚠️ Could not create new page: ${newPageError.message}`);
+        throw new Error("Cannot get a valid page to work with");
+      }
+    }
+
+    // CRITICAL: Verify page is still valid before proceeding
+    try {
+      const currentUrl = page.url();
+      console.log(`🔍 Current tab URL: ${currentUrl}`);
+
+      if (currentUrl.includes("x.com") || currentUrl.includes("twitter.com")) {
+        console.log(`✅ On X.com tab, ready to proceed!`);
+      } else {
+        console.log(`⚠️ Not on X.com tab (URL: ${currentUrl}), will navigate...`);
+        console.log(`🌐 Navigating to X.com...`);
+        await page.goto("https://x.com/home", {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        });
+        console.log(`✅ Successfully navigated to X.com`);
+      }
+    } catch (urlError) {
+      console.log(`⚠️ Could not get page URL: ${urlError.message}`);
+      throw new Error("Page is not usable, cannot proceed");
+    }
 
     await page.setUserAgent(fingerprint.userAgent);
 
@@ -577,17 +691,28 @@ async function processProfile(
             try {
               const likeButton = await tweet.$('[data-testid="like"]');
               if (likeButton) {
+                // Scroll element into view and wait for stability
+                await page.evaluate((el) => {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, likeButton);
+                await sleepWithJitter(300, accountIndex);
+
+                // Check if already liked (added more checks)
                 const isLiked = await page.evaluate((el) => {
                   const ariaLabel = el.getAttribute("aria-label");
                   return (
                     ariaLabel?.includes("Unlike") ||
                     ariaLabel?.includes("Liked") ||
-                    el.querySelector('svg[g="red"]') !== null
+                    el.querySelector('svg[g="red"]') !== null ||
+                    el.querySelector('[data-testid="unlike"]') !== null
                   );
                 }, likeButton);
 
                 if (!isLiked) {
-                  await likeButton.click();
+                  // Use evaluate for more reliable click
+                  await page.evaluate((el) => {
+                    el.click();
+                  }, likeButton);
                   await sleepWithJitter(800, accountIndex);
                   console.log(`❤️ Liked tweet`);
                 } else {
@@ -938,19 +1063,116 @@ async function manualLogin(profileDir, profileName) {
   });
 
   try {
-    // Close all extra tabs that Chrome restored from previous session
-    const pages = await browser.pages();
-    if (pages.length > 1) {
-      console.log(
-        `🧹 Closing ${pages.length - 1} extra tabs restored from previous session...`,
-      );
-      // Keep the first page, close the rest
-      for (let i = 1; i < pages.length; i++) {
-        await pages[i].close();
+    // CRITICAL FIX: Wait for Chrome to restore tabs from previous session
+    // Chrome needs time to load tabs, so we retry checking for X.com tab
+    console.log(`⏳ Waiting for Chrome to restore tabs from previous session...`);
+
+    let xTab = null;
+    let pages = [];
+    let retries = 0;
+    const maxRetries = 5;
+
+    // Retry loop to find X.com tab with delays between attempts
+    while (retries < maxRetries && !xTab) {
+      pages = await browser.pages();
+
+      // Identify X.com tabs vs blank tabs
+      let blankTabs = [];
+
+      for (let i = 0; i < pages.length; i++) {
+        try {
+          const url = pages[i].url();
+          if (url.includes("x.com") || url.includes("twitter.com")) {
+            xTab = pages[i];
+            console.log(`✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`);
+            break;
+          } else if (url === "about:blank" || url.includes("chrome://")) {
+            blankTabs.push(pages[i]);
+          }
+        } catch (e) {
+          blankTabs.push(pages[i]);
+        }
+      }
+
+      if (xTab) {
+        // Close all blank tabs
+        for (const tab of blankTabs) {
+          try {
+            await tab.close();
+          } catch (e) {
+            // Ignore errors closing tabs
+          }
+        }
+        break;
+      }
+
+      // X tab not found, wait and retry
+      retries++;
+      if (retries < maxRetries) {
+        console.log(`⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`);
+        await sleep(1000); // Wait 1 second before retry
       }
     }
 
-    const page = pages[0]; // Use the existing first page instead of creating a new one
+    // Close all extra blank tabs if any remain
+    let blankTabs = [];
+    for (let i = 0; i < pages.length; i++) {
+      try {
+        const url = pages[i].url();
+        if (url === "about:blank" || url.includes("chrome://")) {
+          blankTabs.push(pages[i]);
+        }
+      } catch (e) {
+        blankTabs.push(pages[i]);
+      }
+    }
+
+    for (const tab of blankTabs) {
+      try {
+        await tab.close();
+      } catch (e) {
+        // Ignore errors closing tabs
+      }
+    }
+
+    let page = xTab || (await browser.pages())[0]; // Use X tab if found, otherwise first page
+
+    // CRITICAL: Bring the correct tab to focus and verify it's active
+    try {
+      await page.bringToFront();
+      await sleep(200); // Give it a moment to activate
+    } catch (e) {
+      console.log(`⚠️ Could not bring tab to front, continuing anyway...`);
+    }
+
+    // CRITICAL FIX: Check where we are BEFORE redirecting to tweet URL
+    // If we're on a blank tab, switch to X tab; if X tab, we're good to go
+    let currentUrl = page.url();
+    console.log(`🔍 Current tab URL: ${currentUrl}`);
+
+    // Check if we're on a blank page or chrome:// page
+    if (currentUrl === "about:blank" || currentUrl.includes("chrome://")) {
+      console.log(`⚠️ We're on a blank tab! Checking for X tab...`);
+
+      // If we found an X tab earlier, switch to it
+      if (xTab) {
+        console.log(`✅ Found X tab, switching to it...`);
+        page = xTab;
+        await page.bringToFront();
+        await sleep(200);
+        currentUrl = page.url();
+        console.log(`✅ Switched to X tab: ${currentUrl}`);
+      } else {
+        console.log(`⚠️ No X tab found after ${maxRetries} retries, will navigate current tab to X.com`);
+      }
+    } else if (
+      currentUrl.includes("x.com") ||
+      currentUrl.includes("twitter.com")
+    ) {
+      console.log(`✅ Already on X.com tab, good to go!`);
+    } else {
+      console.log(`⚠️ Unknown tab type, current URL: ${currentUrl}`);
+    }
 
     await page.goto("https://x.com/home", { waitUntil: "networkidle2" });
     console.log("⚠️ Please log in manually in the opened browser...");
@@ -1112,7 +1334,9 @@ async function runScript(globalUsernames) {
     const results = await runScript(globalUsernames);
 
     // Generate simple summary of this round
-    const successful = results.filter((r) => r.success).map((r) => `@${r.name}`);
+    const successful = results
+      .filter((r) => r.success)
+      .map((r) => `@${r.name}`);
     const failed = results.filter((r) => !r.success).map((r) => `@${r.name}`);
 
     let roundSummary = "";
