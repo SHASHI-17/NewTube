@@ -525,10 +525,10 @@ async function processProfile(
     );
     await sleep(10000); // 10 seconds to change settings before profile navigation
 
-    // Navigate to profile
-    console.log(`📍 Navigating to profile: ${PROFILE_URL}`);
+    // Navigate to profile reposts
+    console.log(`📍 Navigating to profile reposts: ${PROFILE_URL}/reposts`);
     try {
-      await page.goto(PROFILE_URL, {
+      await page.goto(`${PROFILE_URL}/reposts`, {
         waitUntil: "networkidle2",
         timeout: 60000,
       });
