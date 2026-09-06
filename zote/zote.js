@@ -14,13 +14,23 @@ const BASE_USER_DATA_DIR =
 
 const ACCOUNT_NAMES = [
   "adore",
+  "hibye",
+  // "bae",
+  "lila",
   "orange",
   "bluemoon",
-  "one",
-  "hibye",
+  "kiran",
   "inyvix",
-  "bae",
-  "anchinka",
+  // "anchinka",
+  // "ivy",
+  // "meera",
+  // "meera",
+  "nyra",
+  "arra",
+  "Nina",
+  "jenni",
+  "myra",
+  // "lila",
 ];
 
 const HEADLESS = false;
@@ -500,6 +510,260 @@ async function isAlreadyRetweeted(page) {
   }
 }
 
+// ================== COMMUNITY NOTE RATING ==================
+// The rating checkboxes to tick. X numbers the CHECKBOX_*_LABEL ids
+// dynamically on every page load, so we target them by position instead:
+// the 1st, 2nd, 3rd and 8th checkbox in the dialog.
+const NOTE_CHECKBOX_POSITIONS = [0, 1, 2, 7];
+
+// Click the "Rate it" button on the community note card (searched on whole page)
+async function clickRateItButton(page) {
+  try {
+    return await page.evaluate(() => {
+      // The Rate it control is rendered as role="link", not a button
+      const candidates = document.querySelectorAll(
+        'button, [role="button"], [role="link"]',
+      );
+      for (const el of candidates) {
+        const txt = (el.innerText || "").trim().toLowerCase();
+        const aria = (el.getAttribute("aria-label") || "").trim().toLowerCase();
+        if (
+          txt === "rate it" ||
+          aria === "rate it" ||
+          aria.includes("rate it") ||
+          aria.includes("rate this note") ||
+          aria.includes("rate note")
+        ) {
+          el.scrollIntoView({ block: "center" });
+          el.click();
+          return true;
+        }
+      }
+      return false;
+    });
+  } catch (error) {
+    return false;
+  }
+}
+
+// Click the "No" option in the rating dialog
+async function clickNoInRatingDialog(page) {
+  try {
+    return await page.evaluate(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      // Prefer the dialog; fall back to radios on the page if no dialog is open
+      const candidates = dialog
+        ? dialog.querySelectorAll(
+            '[role="radio"], button, [role="button"], [role="menuitemradio"], [role="link"]',
+          )
+        : document.querySelectorAll('[role="radio"], [role="menuitemradio"]');
+      for (const el of candidates) {
+        const txt = (el.innerText || "").trim().toLowerCase();
+        const aria = (el.getAttribute("aria-label") || "").trim().toLowerCase();
+        if (txt === "no" || aria === "no") {
+          el.click();
+          return true;
+        }
+      }
+      return false;
+    });
+  } catch (error) {
+    return false;
+  }
+}
+
+// Tick the rating checkboxes inside the dialog (by position, 1st/2nd/3rd/8th)
+async function checkNoteRatingBoxes(page) {
+  const results = {};
+  for (const pos of NOTE_CHECKBOX_POSITIONS) {
+    let checked = false;
+    for (let attempt = 1; attempt <= 3 && !checked; attempt++) {
+      try {
+        checked = await page.evaluate((position) => {
+          const dialog = document.querySelector('[role="dialog"]');
+          const inputs = (dialog || document).querySelectorAll(
+            'input[type="checkbox"]',
+          );
+          const input = inputs[position];
+          if (!input) return false;
+          if (!input.checked) {
+            input.click();
+          }
+          if (!input.checked) {
+            // Fall back to clicking the visible wrapper around the input
+            const wrapper = input.closest("div");
+            if (wrapper) wrapper.click();
+          }
+          return input.checked;
+        }, pos);
+      } catch (error) {
+        checked = false;
+      }
+      if (!checked) await sleep(800);
+    }
+    results[`#${pos + 1}`] = checked;
+  }
+  return results;
+}
+
+// Best-effort submit so the rating is saved and the dialog closes
+async function submitNoteRating(page) {
+  try {
+    return await page.evaluate(() => {
+      const wanted = ["submit", "send", "done", "vote"];
+      const matches = (el) => {
+        const txt = (el.innerText || "").trim().toLowerCase();
+        const aria = (el.getAttribute("aria-label") || "").trim().toLowerCase();
+        return wanted.includes(txt) || wanted.includes(aria);
+      };
+      const isVisuallyDisabled = (el) =>
+        (el.getAttribute("class") || "").includes("r-disabled");
+
+      // Prefer the dialog; fall back to the whole page if no dialog is open
+      const dialog = document.querySelector('[role="dialog"]');
+      const candidates = (dialog || document).querySelectorAll(
+        'button, [role="button"], [role="link"]',
+      );
+
+      // Pass 1: enabled Submit button
+      for (const el of candidates) {
+        if (
+          !el.disabled &&
+          el.getAttribute("aria-disabled") !== "true" &&
+          !isVisuallyDisabled(el) &&
+          matches(el)
+        ) {
+          el.click();
+          return true;
+        }
+      }
+      // Pass 2: X sometimes leaves aria-disabled on the button even when
+      // the checkboxes are ticked — click it anyway
+      for (const el of candidates) {
+        if (!el.disabled && matches(el)) {
+          el.click();
+          return true;
+        }
+      }
+      return false;
+    });
+  } catch (error) {
+    return false;
+  }
+}
+
+// Detect whether this account already rated the note ("Rate it" is gone)
+async function isNoteAlreadyRated(page) {
+  try {
+    return await page.evaluate(() => {
+      const text = (document.body.innerText || "").toLowerCase();
+      const signals = [
+        "you rated this note",
+        "your rating has been submitted",
+        "your rating was submitted",
+        "thanks for your rating",
+        "thanks for the feedback",
+        "you already rated",
+        "update your rating",
+        "update rating",
+      ];
+      if (signals.some((s) => text.includes(s))) return true;
+      // X sometimes swaps the button label to just "Rated"
+      const candidates = document.querySelectorAll(
+        'button, [role="button"], [role="link"]',
+      );
+      for (const el of candidates) {
+        const txt = (el.innerText || "").trim().toLowerCase();
+        if (txt === "rated") return true;
+      }
+      return false;
+    });
+  } catch (error) {
+    return false;
+  }
+}
+
+// Full flow: Rate it → No → tick checkboxes → submit
+async function rateCommunityNote(page, profileName, accountIndex) {
+  // Step 1: Click "Rate it"
+  let rateClicked = false;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    rateClicked = await clickRateItButton(page);
+    if (rateClicked) break;
+    await sleep(1000);
+  }
+  if (!rateClicked) {
+    // No "Rate it" button — either already rated by this account, or no note
+    const alreadyRated = await isNoteAlreadyRated(page);
+    if (alreadyRated) {
+      console.log(
+        `⏭️ ${profileName} already rated this community note — skipping.`,
+      );
+      return "already rated (skipped)";
+    }
+    console.log(
+      `🗒️ ${profileName}: no "Rate it" button found — no community note on this tweet, skipping.`,
+    );
+    return "no note (skipped)";
+  }
+  await sleepWithJitter(1500, accountIndex);
+
+  // Step 2: Click "No"
+  let noClicked = false;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    noClicked = await clickNoInRatingDialog(page);
+    if (noClicked) break;
+    await sleep(1000);
+  }
+  if (!noClicked) {
+    console.log(
+      `⚠️ ${profileName}: could not find "No" option in rating dialog.`,
+    );
+    await page.keyboard.press("Escape").catch(() => {}); // Close dialog so later actions still work
+    return "failed";
+  }
+  await sleepWithJitter(1000, accountIndex);
+
+  // Step 3: Tick the checkboxes
+  const boxResults = await checkNoteRatingBoxes(page);
+  const checkedCount = Object.values(boxResults).filter(Boolean).length;
+  Object.entries(boxResults).forEach(([pos, ok]) => {
+    console.log(
+      `${ok ? "☑️" : "⚠️"} ${profileName} checkbox ${pos}: ${ok ? "checked" : "FAILED"}`,
+    );
+  });
+  if (checkedCount < NOTE_CHECKBOX_POSITIONS.length) {
+    console.log(
+      `⚠️ ${profileName}: only ${checkedCount}/${NOTE_CHECKBOX_POSITIONS.length} checkboxes ticked.`,
+    );
+  }
+  await sleepWithJitter(800, accountIndex);
+
+  // Step 4: Submit ONLY if every checkbox was ticked — otherwise abort
+  // without submitting (close the dialog so quote/retweet still work)
+  let submitted = false;
+  if (checkedCount === NOTE_CHECKBOX_POSITIONS.length) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      submitted = await submitNoteRating(page);
+      if (submitted) break;
+      await sleep(1000);
+    }
+  } else {
+    console.log(
+      `🚫 ${profileName}: skipping submit — not all checkboxes were ticked.`,
+    );
+  }
+  if (!submitted) {
+    // Close the dialog so later actions still work
+    await page.keyboard.press("Escape").catch(() => {});
+  } else {
+    console.log(`📤 ${profileName}: submit button clicked.`);
+  }
+  await sleepWithJitter(1000, accountIndex);
+
+  return checkedCount === NOTE_CHECKBOX_POSITIONS.length ? "rated" : "failed";
+}
+
 // ================== URL VALIDATION ==================
 function isValidTwitterUrl(url) {
   // No validation - accept any URL the user sends
@@ -606,11 +870,13 @@ async function processProfile(
         for (let i = 0; i < pages.length; i++) {
           try {
             const url = pages[i].url();
-            if (url.includes('x.com') || url.includes('twitter.com')) {
+            if (url.includes("x.com") || url.includes("twitter.com")) {
               xTab = pages[i];
-              console.log(`✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`);
+              console.log(
+                `✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`,
+              );
               break;
-            } else if (url === 'about:blank' || url.includes('chrome://')) {
+            } else if (url === "about:blank" || url.includes("chrome://")) {
               blankTabs.push(pages[i]);
             }
           } catch (e) {
@@ -633,7 +899,9 @@ async function processProfile(
         // X tab not found, wait and retry
         retries++;
         if (retries < maxRetries) {
-          console.log(`⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`);
+          console.log(
+            `⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`,
+          );
           await sleep(1000); // Wait 1 second before retry
         }
       } catch (error) {
@@ -688,13 +956,18 @@ async function processProfile(
       if (currentUrl === "about:blank" || currentUrl.includes("chrome://")) {
         console.log(`⚠️ We're on a blank tab! Will navigate to X.com...`);
         // Don't try to switch, just navigate current tab to X.com
-      } else if (currentUrl.includes("x.com") || currentUrl.includes("twitter.com")) {
+      } else if (
+        currentUrl.includes("x.com") ||
+        currentUrl.includes("twitter.com")
+      ) {
         console.log(`✅ Already on X.com tab, good to go!`);
       } else {
         console.log(`⚠️ Unknown tab type, will navigate to X.com`);
       }
     } catch (urlError) {
-      console.log(`⚠️ Could not get page URL: ${urlError.message}, page might be closed`);
+      console.log(
+        `⚠️ Could not get page URL: ${urlError.message}, page might be closed`,
+      );
       // Try to create a new page if current one is closed
       try {
         page = await browser.newPage();
@@ -742,13 +1015,20 @@ async function processProfile(
     // Wait for common loading indicators to disappear
     try {
       // Wait for loading spinners to be gone (up to 10 seconds)
-      await page.waitForFunction(() => {
-        const spinners = document.querySelectorAll('[role="progressbar"], svg[aria-label="Loading"], [data-testid="loading"]');
-        return spinners.length === 0 || !spinners[0]?.isConnected;
-      }, { timeout: 10000 });
+      await page.waitForFunction(
+        () => {
+          const spinners = document.querySelectorAll(
+            '[role="progressbar"], svg[aria-label="Loading"], [data-testid="loading"]',
+          );
+          return spinners.length === 0 || !spinners[0]?.isConnected;
+        },
+        { timeout: 10000 },
+      );
       console.log(`✅ ${profileName} loading spinners gone`);
     } catch (e) {
-      console.log(`⚠️ ${profileName} no spinners detected or timeout - continuing`);
+      console.log(
+        `⚠️ ${profileName} no spinners detected or timeout - continuing`,
+      );
     }
 
     // Additional wait for page to stabilize
@@ -759,11 +1039,15 @@ async function processProfile(
     for (let attempt = 1; attempt <= 3; attempt++) {
       loggedIn = await isLoggedIn(page);
       if (loggedIn) {
-        console.log(`✅ ${profileName} login check passed on attempt ${attempt}`);
+        console.log(
+          `✅ ${profileName} login check passed on attempt ${attempt}`,
+        );
         break;
       }
       if (attempt < 3) {
-        console.log(`⚠️ ${profileName} login check attempt ${attempt} failed, waiting...`);
+        console.log(
+          `⚠️ ${profileName} login check attempt ${attempt} failed, waiting...`,
+        );
         await sleepWithJitter(2000, accountIndex);
       }
     }
@@ -771,8 +1055,12 @@ async function processProfile(
     if (!loggedIn) {
       const errorMsg = `${profileName} is NOT logged in.`;
       console.log(`⚠️ ${errorMsg}`);
-      console.log(`   The page may still be loading or the account is not authenticated.`);
-      console.log(`   Try running the account manually once to ensure it's logged in.`);
+      console.log(
+        `   The page may still be loading or the account is not authenticated.`,
+      );
+      console.log(
+        `   Try running the account manually once to ensure it's logged in.`,
+      );
       // Only send error message, don't spam Telegram for every account
       return { name: profileName, success: false, reason: "Not logged in" };
     }
@@ -898,6 +1186,70 @@ async function processProfile(
 
     const actionResults = {};
 
+    // ↩️ Undo (unlike + unbookmark + unretweet)
+    if (actions.includes("undo")) {
+      console.log(`↩️ ${profileName} starting Undo flow...`);
+      const undoneActions = [];
+
+      // ❤️ Unlike
+      const unliked = await clickIfVisible(page, [
+        'div[data-testid="unlike"]',
+        'button[data-testid="unlike"]',
+      ]);
+      if (unliked) {
+        console.log(`💔 ${profileName} unliked the tweet.`);
+        undoneActions.push("like");
+      } else {
+        console.log(`⏭️ ${profileName} had not liked this tweet.`);
+      }
+      await sleepWithJitter(1000, accountIndex);
+
+      // 🔖 Unbookmark
+      const unbookmarked = await clickIfVisible(page, [
+        'div[data-testid="removeBookmark"]',
+        'button[data-testid="removeBookmark"]',
+      ]);
+      if (unbookmarked) {
+        console.log(`🗑️ ${profileName} removed the bookmark.`);
+        undoneActions.push("bookmark");
+      } else {
+        console.log(`⏭️ ${profileName} had not bookmarked this tweet.`);
+      }
+      await sleepWithJitter(1000, accountIndex);
+
+      // 🔁 Unretweet — click opens the menu, then confirm the first menu item
+      let unretweetClicked = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        unretweetClicked = await clickIfVisible(page, [
+          'div[data-testid="unretweet"]',
+          'button[data-testid="unretweet"]',
+        ]);
+        if (unretweetClicked) break;
+        await sleep(800);
+      }
+      if (unretweetClicked) {
+        await sleepWithJitter(1000, accountIndex);
+        const unretweetMenuItems = await page.$$(`div[role="menuitem"]`);
+        if (unretweetMenuItems.length > 0) {
+          await unretweetMenuItems[0].click();
+          console.log(`🔁 ${profileName} unretweeted the tweet.`);
+          undoneActions.push("retweet");
+        } else {
+          console.log(`⚠️ Unretweet menu not found — pressing Escape.`);
+          await page.keyboard.press("Escape").catch(() => {});
+        }
+      } else {
+        console.log(`⏭️ ${profileName} had not retweeted this tweet.`);
+      }
+      await sleepWithJitter(1000, accountIndex);
+
+      actionResults.undo =
+        undoneActions.length > 0
+          ? `undone (${undoneActions.join(", ")})`
+          : "nothing to undo";
+      console.log(`↩️ ${profileName} undo result: ${actionResults.undo}`);
+    }
+
     // ❤️ Like
     if (actions.includes("like")) {
       const alreadyLiked = await isAlreadyLiked(page);
@@ -964,6 +1316,23 @@ async function processProfile(
         }
       }
       await sleepWithJitter(1000, accountIndex); // Match twit.js exactly
+    }
+
+    // 🗒️ Community Note rating
+    if (actions.includes("note")) {
+      console.log(`🗒️ ${profileName} starting Community Note rating flow...`);
+      const noteResult = await rateCommunityNote(
+        page,
+        profileName,
+        accountIndex,
+      );
+      actionResults.note = noteResult;
+      if (noteResult === "rated") {
+        console.log(`🗒️ ${profileName} rated the community note.`);
+      } else if (noteResult === "failed") {
+        console.log(`⚠️ ${profileName} community note rating failed.`);
+      }
+      await sleepWithJitter(1000, accountIndex);
     }
 
     // ✍️ Quote Tweet
@@ -1238,6 +1607,8 @@ async function processQueue() {
         bookmark: "🔖",
         quote: "✍️",
         retweet: "🔁",
+        note: "🗒️",
+        undo: "↩️",
       };
 
       const actionDisplay = job.actions.map((a) => actionIcons[a]).join(" ");
@@ -1389,6 +1760,8 @@ async function processQueue() {
                 bookmark: "💜",
                 quote: "💕",
                 retweet: "🌸",
+                note: "🗒️",
+                undo: "↩️",
               };
 
               // ANY result that contains "already" is SUCCESS (not failure)
@@ -1407,6 +1780,10 @@ async function processQueue() {
                 "liked",
                 "bookmarked",
                 "retweeted",
+                "rated",
+                "no note",
+                "undone",
+                "nothing to undo",
                 "posted",
                 "complete",
                 "done",
@@ -1806,6 +2183,10 @@ bot.on("message", async (msg) => {
                   { text: "🌸 Retweet", callback_data: "toggle_retweet" },
                 ],
                 [
+                  { text: "🗒️ Note", callback_data: "toggle_note" },
+                  { text: "↩️ Undo", callback_data: "toggle_undo" },
+                ],
+                [
                   {
                     text: "💖💜 Like + Bookmark",
                     callback_data: "select_like_bookmark",
@@ -2013,7 +2394,12 @@ bot.on("callback_query", async (query) => {
         bookmark: "🔖",
         quote: "✍️",
         retweet: "🔁",
+        note: "🗒️",
+        undo: "↩️",
       };
+      // Note and Undo are exclusive — they can never be combined with
+      // anything else (including each other)
+      const EXCLUSIVE_ACTIONS = ["note", "undo"];
 
       // Toggle the action
       const actionIndex = userSelections[chatId].indexOf(action);
@@ -2022,15 +2408,41 @@ bot.on("callback_query", async (query) => {
         userSelections[chatId].splice(actionIndex, 1);
         toastMessage = `${actionIcons[action]} Deselected ${action}`;
         console.log(`❌ Deselected: ${action}`);
+      } else if (EXCLUSIVE_ACTIONS.includes(action)) {
+        // Selecting an exclusive action clears everything else
+        const cleared = userSelections[chatId].length;
+        userSelections[chatId] = [action];
+        toastMessage =
+          cleared > 0
+            ? `${actionIcons[action]} ${action} selected — cleared ${cleared} other selection${cleared === 1 ? "" : "s"}`
+            : `${actionIcons[action]} Selected ${action}`;
+        console.log(
+          `✅ Selected exclusive: ${action} — cleared ${cleared} other selection(s)`,
+        );
       } else {
-        // Add action (select)
+        // Regular actions can't be combined with note/undo — drop them
+        const stripped = userSelections[chatId].filter((a) =>
+          EXCLUSIVE_ACTIONS.includes(a),
+        );
+        userSelections[chatId] = userSelections[chatId].filter(
+          (a) => !EXCLUSIVE_ACTIONS.includes(a),
+        );
         userSelections[chatId].push(action);
-        toastMessage = `${actionIcons[action]} Selected ${action}`;
-        console.log(`✅ Selected: ${action}`);
+        toastMessage =
+          stripped.length > 0
+            ? `${actionIcons[action]} Selected ${action} (removed ${stripped.map((s) => actionIcons[s]).join(" ")})`
+            : `${actionIcons[action]} Selected ${action}`;
+        console.log(
+          `✅ Selected: ${action}${stripped.length > 0 ? ` — removed exclusives: ${stripped.join(", ")}` : ""}`,
+        );
       }
     }
     // Handle preset selection buttons - SMART selection logic
     else if (data === "select_like_bookmark") {
+      // Presets use regular actions only — drop exclusive note/undo
+      userSelections[chatId] = userSelections[chatId].filter(
+        (a) => a !== "note" && a !== "undo",
+      );
       const added = [];
       // Always add both (intelligent addition - no duplicates)
       if (!userSelections[chatId].includes("like")) {
@@ -2049,6 +2461,10 @@ bot.on("callback_query", async (query) => {
       }
       console.log(`✅ Selected preset: like + bookmark`);
     } else if (data === "select_quote_retweet") {
+      // Presets use regular actions only — drop exclusive note/undo
+      userSelections[chatId] = userSelections[chatId].filter(
+        (a) => a !== "note" && a !== "undo",
+      );
       const added = [];
       // Always add both (intelligent addition - no duplicates)
       if (!userSelections[chatId].includes("quote")) {
@@ -2068,7 +2484,12 @@ bot.on("callback_query", async (query) => {
       console.log(`✅ Selected preset: quote + retweet`);
     } else if (data === "select_all") {
       // Add all missing actions (smart - no duplicates)
+      // ALL uses regular actions only — never note/undo, and drops them if selected
+      userSelections[chatId] = userSelections[chatId].filter(
+        (a) => a !== "note" && a !== "undo",
+      );
       const added = [];
+      // Note is intentionally NOT part of ALL — it's opt-in only (used when needed)
       ["like", "bookmark", "quote", "retweet"].forEach((action) => {
         if (!userSelections[chatId].includes(action)) {
           userSelections[chatId].push(action);
@@ -2077,6 +2498,7 @@ bot.on("callback_query", async (query) => {
             bookmark: "🔖",
             quote: "✍️",
             retweet: "🔁",
+            note: "🗒️",
           };
           added.push(`${icons[action]} ${action}`);
         }
@@ -2176,6 +2598,12 @@ bot.on("callback_query", async (query) => {
     const retweetText = selectedActions.includes("retweet")
       ? "🔁 ✅ Retweet"
       : "🔁 Retweet";
+    const noteText = selectedActions.includes("note")
+      ? "🗒️ ✅ Note"
+      : "🗒️ Note";
+    const undoText = selectedActions.includes("undo")
+      ? "↩️ ✅ Undo"
+      : "↩️ Undo";
 
     // Edit the existing message with updated selections and buttons
     try {
@@ -2193,6 +2621,10 @@ bot.on("callback_query", async (query) => {
               [
                 { text: quoteText, callback_data: "toggle_quote" },
                 { text: retweetText, callback_data: "toggle_retweet" },
+              ],
+              [
+                { text: noteText, callback_data: "toggle_note" },
+                { text: undoText, callback_data: "toggle_undo" },
               ],
               [
                 {

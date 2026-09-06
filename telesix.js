@@ -101,7 +101,7 @@ const DO_COMMENT = hasActionFlags ? cliArgs.actions.comment : false;
 
 // ================== TELEGRAM CONFIG ==================s
 const TELEGRAM_BOT_TOKEN = "8857592188:AAGxyx4V6t6fJQ9C--Fq4fBZBKIbbCimeLU"; // Your bot token
-const TELEGRAM_CHAT_IDS = ["1991164194", "1956483216"]; // Add multiple chat IDs
+const TELEGRAM_CHAT_IDS = ["1991164194", "1956483216", "6828846420"]; // Add multiple chat IDs
 const SEND_TO_TELEGRAM = true; // Set to true to enable Telegram notifications
 
 const SLEEP_MS = 800; // Base delay between actions (milliseconds)
@@ -373,7 +373,9 @@ async function processProfile(
             const url = pages[i].url();
             if (url.includes("x.com") || url.includes("twitter.com")) {
               xTab = pages[i];
-              console.log(`✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`);
+              console.log(
+                `✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`,
+              );
               break;
             } else if (url === "about:blank" || url.includes("chrome://")) {
               blankTabs.push(pages[i]);
@@ -398,7 +400,9 @@ async function processProfile(
         // X tab not found, wait and retry
         retries++;
         if (retries < maxRetries) {
-          console.log(`⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`);
+          console.log(
+            `⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`,
+          );
           await sleep(1000); // Wait 1 second before retry
         }
       } catch (error) {
@@ -462,7 +466,9 @@ async function processProfile(
       if (currentUrl.includes("x.com") || currentUrl.includes("twitter.com")) {
         console.log(`✅ On X.com tab, ready to proceed!`);
       } else {
-        console.log(`⚠️ Not on X.com tab (URL: ${currentUrl}), will navigate...`);
+        console.log(
+          `⚠️ Not on X.com tab (URL: ${currentUrl}), will navigate...`,
+        );
         console.log(`🌐 Navigating to X.com...`);
         await page.goto("https://x.com/home", {
           waitUntil: "networkidle2",
@@ -693,7 +699,7 @@ async function processProfile(
               if (likeButton) {
                 // Scroll element into view and wait for stability
                 await page.evaluate((el) => {
-                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  el.scrollIntoView({ behavior: "smooth", block: "center" });
                 }, likeButton);
                 await sleepWithJitter(300, accountIndex);
 
@@ -1065,7 +1071,9 @@ async function manualLogin(profileDir, profileName) {
   try {
     // CRITICAL FIX: Wait for Chrome to restore tabs from previous session
     // Chrome needs time to load tabs, so we retry checking for X.com tab
-    console.log(`⏳ Waiting for Chrome to restore tabs from previous session...`);
+    console.log(
+      `⏳ Waiting for Chrome to restore tabs from previous session...`,
+    );
 
     let xTab = null;
     let pages = [];
@@ -1084,7 +1092,9 @@ async function manualLogin(profileDir, profileName) {
           const url = pages[i].url();
           if (url.includes("x.com") || url.includes("twitter.com")) {
             xTab = pages[i];
-            console.log(`✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`);
+            console.log(
+              `✅ Found X.com tab on attempt ${retries + 1}/${maxRetries}`,
+            );
             break;
           } else if (url === "about:blank" || url.includes("chrome://")) {
             blankTabs.push(pages[i]);
@@ -1109,7 +1119,9 @@ async function manualLogin(profileDir, profileName) {
       // X tab not found, wait and retry
       retries++;
       if (retries < maxRetries) {
-        console.log(`⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`);
+        console.log(
+          `⏳ No X.com tab found yet, retrying in 1s... (${retries}/${maxRetries})`,
+        );
         await sleep(1000); // Wait 1 second before retry
       }
     }
@@ -1163,7 +1175,9 @@ async function manualLogin(profileDir, profileName) {
         currentUrl = page.url();
         console.log(`✅ Switched to X tab: ${currentUrl}`);
       } else {
-        console.log(`⚠️ No X tab found after ${maxRetries} retries, will navigate current tab to X.com`);
+        console.log(
+          `⚠️ No X tab found after ${maxRetries} retries, will navigate current tab to X.com`,
+        );
       }
     } else if (
       currentUrl.includes("x.com") ||

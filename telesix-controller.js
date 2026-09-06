@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 // ================== CONFIGURATION ==================
 const TELEGRAM_BOT_TOKEN = "8995659907:AAFXgYbwuAkwoPG7rWYTX_7JoqUZwO53oXY";
-const AUTHORIZED_CHAT_IDS = ["1991164194", "1956483216"];
+const AUTHORIZED_CHAT_IDS = ["1991164194", "1956483216", "6828846420"];
 const CONFIG_FILE = path.join(__dirname, "telesix-config.json");
 
 // ================== DEFAULT CONFIGURATION ==================
@@ -27,7 +27,10 @@ const DEFAULT_CONFIG = {
 
 // Helper function to extract profile URL from stop URL
 function extractProfileUrl(stopUrl) {
-  if (!stopUrl) return DEFAULT_CONFIG.stopUrl?.split("/status")[0] || "https://x.com/am1rax";
+  if (!stopUrl)
+    return (
+      DEFAULT_CONFIG.stopUrl?.split("/status")[0] || "https://x.com/am1rax"
+    );
 
   try {
     const url = new URL(stopUrl);
@@ -53,12 +56,27 @@ function loadConfig() {
 
       currentConfig = {
         stopUrl: loadedConfig.stopUrl || DEFAULT_CONFIG.stopUrl,
-        repeat: loadedConfig.repeat !== undefined ? loadedConfig.repeat : DEFAULT_CONFIG.repeat,
+        repeat:
+          loadedConfig.repeat !== undefined
+            ? loadedConfig.repeat
+            : DEFAULT_CONFIG.repeat,
         actions: {
-          like: loadedConfig.actions?.like !== undefined ? loadedConfig.actions.like : DEFAULT_CONFIG.actions.like,
-          bookmark: loadedConfig.actions?.bookmark !== undefined ? loadedConfig.actions.bookmark : DEFAULT_CONFIG.actions.bookmark,
-          retweet: loadedConfig.actions?.retweet !== undefined ? loadedConfig.actions.retweet : DEFAULT_CONFIG.actions.retweet,
-          comment: loadedConfig.actions?.comment !== undefined ? loadedConfig.actions.comment : DEFAULT_CONFIG.actions.comment,
+          like:
+            loadedConfig.actions?.like !== undefined
+              ? loadedConfig.actions.like
+              : DEFAULT_CONFIG.actions.like,
+          bookmark:
+            loadedConfig.actions?.bookmark !== undefined
+              ? loadedConfig.actions.bookmark
+              : DEFAULT_CONFIG.actions.bookmark,
+          retweet:
+            loadedConfig.actions?.retweet !== undefined
+              ? loadedConfig.actions.retweet
+              : DEFAULT_CONFIG.actions.retweet,
+          comment:
+            loadedConfig.actions?.comment !== undefined
+              ? loadedConfig.actions.comment
+              : DEFAULT_CONFIG.actions.comment,
         },
       };
     } catch (error) {
@@ -93,10 +111,11 @@ function formatConfig() {
     comment: "✍️",
   };
 
-  const enabledActions = Object.entries(currentConfig.actions)
-    .filter(([_, enabled]) => enabled)
-    .map(([action, _]) => `${actionIcons[action]} ${action}`)
-    .join(", ") || "None";
+  const enabledActions =
+    Object.entries(currentConfig.actions)
+      .filter(([_, enabled]) => enabled)
+      .map(([action, _]) => `${actionIcons[action]} ${action}`)
+      .join(", ") || "None";
 
   const profileUrl = extractProfileUrl(currentConfig.stopUrl);
 
@@ -211,15 +230,27 @@ function stopTelesix() {
   try {
     const pid = currentProcess.pid;
 
-    try { currentProcess.kill("SIGTERM"); } catch (e) {}
-    try { currentProcess.kill("SIGINT"); } catch (e) {}
+    try {
+      currentProcess.kill("SIGTERM");
+    } catch (e) {}
+    try {
+      currentProcess.kill("SIGINT");
+    } catch (e) {}
 
     if (process.platform === "win32") {
-      try { execSync(`taskkill /F /PID ${pid}`, { stdio: "ignore" }); } catch (e) {}
-      try { execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" }); } catch (e) {}
+      try {
+        execSync(`taskkill /F /PID ${pid}`, { stdio: "ignore" });
+      } catch (e) {}
+      try {
+        execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" });
+      } catch (e) {}
     } else {
-      try { execSync(`pkill -P ${pid}`, { stdio: "ignore" }); } catch (e) {}
-      try { execSync("pkill chrome", { stdio: "ignore" }); } catch (e) {}
+      try {
+        execSync(`pkill -P ${pid}`, { stdio: "ignore" });
+      } catch (e) {}
+      try {
+        execSync("pkill chrome", { stdio: "ignore" });
+      } catch (e) {}
     }
 
     currentProcess.killed = true;
@@ -240,7 +271,9 @@ function restartTelesix() {
       currentProcess = null;
     }
     if (process.platform === "win32") {
-      try { execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" }); } catch (e) {}
+      try {
+        execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" });
+      } catch (e) {}
     }
     const startResult = startTelesix();
     broadcastMainMenuUpdate();
@@ -259,15 +292,17 @@ function broadcastMainMenuUpdate() {
 // Broadcast message to all users
 function broadcastMessage(message) {
   for (const chatId of AUTHORIZED_CHAT_IDS) {
-    bot.sendMessage(chatId, message, { parse_mode: "Markdown" }).catch((error) => {
-      console.error(`Broadcast to ${chatId} failed:`, error.message);
-    });
+    bot
+      .sendMessage(chatId, message, { parse_mode: "Markdown" })
+      .catch((error) => {
+        console.error(`Broadcast to ${chatId} failed:`, error.message);
+      });
   }
 }
 
 // Parse progress output and send updates
 function parseAndBroadcastProgress(output) {
-  const lines = output.split("\n").filter(line => line.trim());
+  const lines = output.split("\n").filter((line) => line.trim());
 
   for (const line of lines) {
     // Individual account success with tweet count
@@ -275,7 +310,10 @@ function parseAndBroadcastProgress(output) {
       broadcastMessage(`${line.trim()}`);
     }
     // Batch completion
-    else if (line.includes("Batch complete") || line.includes("✅ Batch complete")) {
+    else if (
+      line.includes("Batch complete") ||
+      line.includes("✅ Batch complete")
+    ) {
       broadcastMessage(`${line.trim()}`);
     }
   }
@@ -357,7 +395,7 @@ Tap Settings to change:
           [{ text: "🔙 Back to Main", callback_data: "menu_main" }],
         ],
       },
-    }
+    },
   );
 });
 
@@ -533,15 +571,30 @@ bot.on("callback_query", async (query) => {
             parse_mode: "Markdown",
             reply_markup: {
               inline_keyboard: [
-                [{ text: "🎯 Change Target Tweet", callback_data: "edit_stop_url" }],
-                [{ text: "🔁 Change Repeat Count", callback_data: "edit_repeat" }],
+                [
+                  {
+                    text: "🎯 Change Target Tweet",
+                    callback_data: "edit_stop_url",
+                  },
+                ],
+                [
+                  {
+                    text: "🔁 Change Repeat Count",
+                    callback_data: "edit_repeat",
+                  },
+                ],
                 [{ text: "✅ Toggle Actions", callback_data: "edit_actions" }],
-                [{ text: "🔄 Reset Defaults", callback_data: "reset_defaults" }],
+                [
+                  {
+                    text: "🔄 Reset Defaults",
+                    callback_data: "reset_defaults",
+                  },
+                ],
                 [{ text: "💾 Save & Back", callback_data: "save_settings" }],
                 [{ text: "❌ Cancel", callback_data: "menu_main" }],
               ],
             },
-          }
+          },
         );
         break;
 
@@ -558,7 +611,7 @@ bot.on("callback_query", async (query) => {
                 [{ text: "🔙 Back to Main", callback_data: "menu_main" }],
               ],
             },
-          }
+          },
         );
         break;
 
@@ -571,7 +624,7 @@ bot.on("callback_query", async (query) => {
             chat_id: chatId,
             message_id: query.message.message_id,
             parse_mode: "Markdown",
-          }
+          },
         );
         break;
 
@@ -584,7 +637,7 @@ bot.on("callback_query", async (query) => {
             chat_id: chatId,
             message_id: query.message.message_id,
             parse_mode: "Markdown",
-          }
+          },
         );
         break;
 
@@ -601,35 +654,41 @@ bot.on("callback_query", async (query) => {
                 [
                   {
                     text: currentConfig.actions.like ? "❤️ ✅ Like" : "❤️ Like",
-                    callback_data: "toggle_like"
+                    callback_data: "toggle_like",
                   },
                   {
-                    text: currentConfig.actions.bookmark ? "🔖 ✅ Bookmark" : "🔖 Bookmark",
-                    callback_data: "toggle_bookmark"
+                    text: currentConfig.actions.bookmark
+                      ? "🔖 ✅ Bookmark"
+                      : "🔖 Bookmark",
+                    callback_data: "toggle_bookmark",
                   },
                 ],
                 [
                   {
-                    text: currentConfig.actions.retweet ? "🔁 ✅ Retweet" : "🔁 Retweet",
-                    callback_data: "toggle_retweet"
+                    text: currentConfig.actions.retweet
+                      ? "🔁 ✅ Retweet"
+                      : "🔁 Retweet",
+                    callback_data: "toggle_retweet",
                   },
                   {
-                    text: currentConfig.actions.comment ? "✍️ ✅ Comment" : "✍️ Comment",
-                    callback_data: "toggle_comment"
+                    text: currentConfig.actions.comment
+                      ? "✍️ ✅ Comment"
+                      : "✍️ Comment",
+                    callback_data: "toggle_comment",
                   },
                 ],
                 [{ text: "💾 Save & Back", callback_data: "save_settings" }],
                 [{ text: "❌ Cancel", callback_data: "menu_main" }],
               ],
             },
-          }
+          },
         );
         break;
 
       case "toggle_like":
         currentConfig.actions.like = !currentConfig.actions.like;
         await bot.answerCallbackQuery(query.id, {
-          text: currentConfig.actions.like ? "❤️ On" : "❤️ Off"
+          text: currentConfig.actions.like ? "❤️ On" : "❤️ Off",
         });
         await updateActionsMenu(query.message, chatId);
         break;
@@ -637,7 +696,7 @@ bot.on("callback_query", async (query) => {
       case "toggle_bookmark":
         currentConfig.actions.bookmark = !currentConfig.actions.bookmark;
         await bot.answerCallbackQuery(query.id, {
-          text: currentConfig.actions.bookmark ? "🔖 On" : "🔖 Off"
+          text: currentConfig.actions.bookmark ? "🔖 On" : "🔖 Off",
         });
         await updateActionsMenu(query.message, chatId);
         break;
@@ -645,7 +704,7 @@ bot.on("callback_query", async (query) => {
       case "toggle_retweet":
         currentConfig.actions.retweet = !currentConfig.actions.retweet;
         await bot.answerCallbackQuery(query.id, {
-          text: currentConfig.actions.retweet ? "🔁 On" : "🔁 Off"
+          text: currentConfig.actions.retweet ? "🔁 On" : "🔁 Off",
         });
         await updateActionsMenu(query.message, chatId);
         break;
@@ -653,7 +712,7 @@ bot.on("callback_query", async (query) => {
       case "toggle_comment":
         currentConfig.actions.comment = !currentConfig.actions.comment;
         await bot.answerCallbackQuery(query.id, {
-          text: currentConfig.actions.comment ? "✍️ On" : "✍️ Off"
+          text: currentConfig.actions.comment ? "✍️ On" : "✍️ Off",
         });
         await updateActionsMenu(query.message, chatId);
         break;
@@ -731,28 +790,34 @@ async function updateActionsMenu(message, chatId) {
           [
             {
               text: currentConfig.actions.like ? "❤️ ✅ Like" : "❤️ Like",
-              callback_data: "toggle_like"
+              callback_data: "toggle_like",
             },
             {
-              text: currentConfig.actions.bookmark ? "🔖 ✅ Bookmark" : "🔖 Bookmark",
-              callback_data: "toggle_bookmark"
+              text: currentConfig.actions.bookmark
+                ? "🔖 ✅ Bookmark"
+                : "🔖 Bookmark",
+              callback_data: "toggle_bookmark",
             },
           ],
           [
             {
-              text: currentConfig.actions.retweet ? "🔁 ✅ Retweet" : "🔁 Retweet",
-              callback_data: "toggle_retweet"
+              text: currentConfig.actions.retweet
+                ? "🔁 ✅ Retweet"
+                : "🔁 Retweet",
+              callback_data: "toggle_retweet",
             },
             {
-              text: currentConfig.actions.comment ? "✍️ ✅ Comment" : "✍️ Comment",
-              callback_data: "toggle_comment"
+              text: currentConfig.actions.comment
+                ? "✍️ ✅ Comment"
+                : "✍️ Comment",
+              callback_data: "toggle_comment",
             },
           ],
           [{ text: "💾 Save & Back", callback_data: "save_settings" }],
           [{ text: "❌ Cancel", callback_data: "menu_main" }],
         ],
       },
-      { chat_id: chatId, message_id: message.message_id }
+      { chat_id: chatId, message_id: message.message_id },
     );
   } catch (error) {
     console.error("Update actions error:", error.message);
@@ -792,7 +857,10 @@ bot.on("message", async (msg) => {
             },
           });
         } else {
-          await bot.sendMessage(chatId, "Send a valid number (0 or higher). /cancel to go back.");
+          await bot.sendMessage(
+            chatId,
+            "Send a valid number (0 or higher). /cancel to go back.",
+          );
         }
         break;
 
@@ -813,15 +881,22 @@ bot.on("message", async (msg) => {
           saveConfig();
           delete userStates[chatId];
           const profileUrl = extractProfileUrl(text);
-          await bot.sendMessage(chatId, `Target updated!\nProfile: ${profileUrl}`, {
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: "🔙 Back to Main", callback_data: "menu_main" }],
-              ],
+          await bot.sendMessage(
+            chatId,
+            `Target updated!\nProfile: ${profileUrl}`,
+            {
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: "🔙 Back to Main", callback_data: "menu_main" }],
+                ],
+              },
             },
-          });
+          );
         } else {
-          await bot.sendMessage(chatId, 'Send a URL or "none". /cancel to go back.');
+          await bot.sendMessage(
+            chatId,
+            'Send a URL or "none". /cancel to go back.',
+          );
         }
         break;
 
@@ -847,19 +922,33 @@ console.log("Telesix Controller ready");
 // Graceful shutdown
 async function gracefulShutdown(signal) {
   if (currentProcess) {
-    try { currentProcess.kill("SIGTERM"); } catch (e) {}
-    try { currentProcess.kill("SIGINT"); } catch (e) {}
+    try {
+      currentProcess.kill("SIGTERM");
+    } catch (e) {}
+    try {
+      currentProcess.kill("SIGINT");
+    } catch (e) {}
 
     if (process.platform === "win32") {
-      try { execSync(`taskkill /F /PID ${currentProcess.pid}`, { stdio: "ignore" }); } catch (e) {}
-      try { execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" }); } catch (e) {}
+      try {
+        execSync(`taskkill /F /PID ${currentProcess.pid}`, { stdio: "ignore" });
+      } catch (e) {}
+      try {
+        execSync("taskkill /F /IM chrome.exe", { stdio: "ignore" });
+      } catch (e) {}
     } else {
-      try { execSync(`pkill -P ${currentProcess.pid}`, { stdio: "ignore" }); } catch (e) {}
-      try { execSync("pkill chrome", { stdio: "ignore" }); } catch (e) {}
+      try {
+        execSync(`pkill -P ${currentProcess.pid}`, { stdio: "ignore" });
+      } catch (e) {}
+      try {
+        execSync("pkill chrome", { stdio: "ignore" });
+      } catch (e) {}
     }
   }
 
-  try { bot.stopPolling(); } catch (e) {}
+  try {
+    bot.stopPolling();
+  } catch (e) {}
   process.exit(0);
 }
 
